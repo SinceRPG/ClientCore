@@ -1,8 +1,29 @@
 name: ClientCore
 version: '${version}'
-
 main: net.danh.clientcore.ClientCore
 api-version: '26.1.2'
 load: POSTWORLD
-
 authors: [ VoChiDanh ]
+folia-supported: true
+dependencies:
+  server:
+    packetevents:
+      load: BEFORE
+      required: true
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+    WorldGuard:
+      load: BEFORE
+      required: false
+    MMOItems:
+      load: BEFORE
+      required: false
+    MythicMobs:
+      load: BEFORE
+      required: false
+permissions:
+  clientcore.admin:
+    default: op
+  clientcore.luck:
+    default: true
