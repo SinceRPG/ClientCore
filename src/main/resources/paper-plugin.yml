@@ -1,0 +1,8 @@
+name: ClientCore
+version: '${version}'
+
+main: net.danh.clientcore.ClientCore
+api-version: '26.1.2'
+load: POSTWORLD
+
+authors: [ VoChiDanh ]
