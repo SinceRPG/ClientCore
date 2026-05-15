@@ -11,15 +11,19 @@ import net.danh.clientcore.storage.CooldownManager;
 import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.ItemMergeEvent;
+import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;
@@ -36,6 +40,7 @@ public final class ClientDropService implements Listener {
     private final ConditionEvaluator conditions;
     private final ConfigItemBuilder itemBuilder;
     private final CooldownManager cooldownManager;
+    private final NamespacedKey dropKey;
     private final Map<UUID, Map<String, Entity>> activeDrops = new ConcurrentHashMap<>();
     private List<DropRule> rules = List.of();
     private boolean enabled;
@@ -51,11 +56,11 @@ public final class ClientDropService implements Listener {
         this.conditions = conditions;
         this.cooldownManager = cooldownManager;
         this.itemBuilder = new ConfigItemBuilder(plugin, hooks);
+        this.dropKey = new NamespacedKey(plugin, "client_drop");
     }
 
     public void reload() {
         this.enabled = configManager.getDrops().getBoolean("client-drops.enabled", true);
-        // Bổ sung bán kính render cho drops
         this.refreshRadius = Math.max(1, configManager.getDrops().getInt("client-drops.refresh-radius", 15));
         this.rules = new DropRuleLoader(plugin, configManager.getDrops()).load();
 
@@ -93,7 +98,6 @@ public final class ClientDropService implements Listener {
 
         for (DropRule rule : rules) {
             Location loc = rule.location();
-            // An toàn cho Folia: Bỏ qua nếu khác World hoặc Chunk chưa được tải
             if (loc.getWorld() != player.getWorld() || !loc.isChunkLoaded()) continue;
 
             double dist = player.getLocation().distanceSquared(loc);
@@ -104,7 +108,6 @@ public final class ClientDropService implements Listener {
             boolean shouldSpawn = inRange && passedConditions && !isOnCooldown;
 
             Entity currentDrop = spawned.get(rule.id());
-            // Dọn dẹp Ghost Entity nếu nó đã bị server xóa (despawn/clearlag)
             if (currentDrop != null && (!currentDrop.isValid() || Bukkit.getEntity(currentDrop.getUniqueId()) == null)) {
                 spawned.remove(rule.id());
                 currentDrop = null;
@@ -123,6 +126,9 @@ public final class ClientDropService implements Listener {
                     item.setGravity(false);
                     item.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
                     item.setInvulnerable(true);
+
+                    // Đóng dấu đây là item ảo của ClientCore để các Event khác có thể nhận diện
+                    item.getPersistentDataContainer().set(dropKey, PersistentDataType.BYTE, (byte) 1);
 
                     hideFromOthers(item, player);
                     spawned.put(rule.id(), item);
@@ -147,29 +153,56 @@ public final class ClientDropService implements Listener {
 
     @EventHandler
     public void onPickup(EntityPickupItemEvent event) {
-        if (!(event.getEntity() instanceof Player player)) return;
-        Map<String, Entity> drops = activeDrops.get(player.getUniqueId());
-        if (drops == null) return;
+        Item item = event.getItem();
 
-        for (Map.Entry<String, Entity> entry : drops.entrySet()) {
-            if (entry.getValue().equals(event.getItem())) {
-                event.setCancelled(true);
-                String ruleId = entry.getKey();
-                DropRule rule = getRule(ruleId);
+        // Kiểm tra xem item này có phải là ảo (do ClientCore tạo ra) không
+        if (item.getPersistentDataContainer().has(dropKey, PersistentDataType.BYTE)) {
+            // Chặn tuyệt đối hành vi nhặt đồ gốc của Minecraft (chống nhặt nhầm của người khác/mob nhặt)
+            event.setCancelled(true);
 
-                if (rule == null || cooldownManager.isOnCooldown(player.getUniqueId(), "drop", ruleId)) return;
+            if (!(event.getEntity() instanceof Player player)) return;
 
-                player.getInventory().addItem(event.getItem().getItemStack());
+            Map<String, Entity> drops = activeDrops.get(player.getUniqueId());
+            if (drops == null) return;
 
-                long duration = calculateCooldown(player, rule.cooldowns());
-                if (duration > 0) {
-                    cooldownManager.setCooldown(player.getUniqueId(), "drop", ruleId, System.currentTimeMillis() + (duration * 50L));
+            // Xác minh xem item đang nằm dưới đất có thực sự nằm trong danh sách item TỰ TẠO của người chơi này hay không
+            for (Map.Entry<String, Entity> entry : drops.entrySet()) {
+                if (entry.getValue().equals(item)) {
+                    String ruleId = entry.getKey();
+                    DropRule rule = getRule(ruleId);
+
+                    if (rule == null || cooldownManager.isOnCooldown(player.getUniqueId(), "drop", ruleId)) return;
+
+                    // Xác minh thành công, tự tay nhét item vào kho đồ người chơi
+                    player.getInventory().addItem(item.getItemStack());
+
+                    long duration = calculateCooldown(player, rule.cooldowns());
+                    if (duration > 0) {
+                        cooldownManager.setCooldown(player.getUniqueId(), "drop", ruleId, System.currentTimeMillis() + (duration * 50L));
+                    }
+
+                    item.remove();
+                    drops.remove(ruleId);
+                    break;
                 }
-
-                event.getItem().remove();
-                drops.remove(ruleId);
-                break;
             }
+        }
+    }
+
+    @EventHandler
+    public void onHopperPickup(InventoryPickupItemEvent event) {
+        // Ngăn chặn phễu (hopper) hoặc xe mỏ hút đồ ảo vào rương
+        if (event.getItem().getPersistentDataContainer().has(dropKey, PersistentDataType.BYTE)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onItemMerge(ItemMergeEvent event) {
+        // Ngăn chặn các đồ ảo gộp lại với nhau hoặc gộp với đồ thật
+        if (event.getEntity().getPersistentDataContainer().has(dropKey, PersistentDataType.BYTE) ||
+                event.getTarget().getPersistentDataContainer().has(dropKey, PersistentDataType.BYTE)) {
+            event.setCancelled(true);
         }
     }
 
