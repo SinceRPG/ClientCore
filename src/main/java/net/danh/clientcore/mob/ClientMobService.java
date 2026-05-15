@@ -175,7 +175,11 @@ public final class ClientMobService implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        for (int entityId : entityIds.values()) packets.destroyEntity(event.getPlayer(), entityId);
+        Player player = event.getPlayer();
+        for (Entity entity : clientEntities.values()) {
+            player.hideEntity(plugin, entity);
+            packets.destroyEntity(player, entity.getEntityId());
+        }
     }
 
     @EventHandler
@@ -318,12 +322,13 @@ public final class ClientMobService implements Listener {
     }
 
     private void hideFromOthers(Entity entity, Player viewer) {
+        entity.setVisibleByDefault(false);
+        viewer.showEntity(plugin, entity);
+
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (!online.getUniqueId().equals(viewer.getUniqueId())) {
                 online.hideEntity(plugin, entity);
                 packets.destroyEntity(online, entity.getEntityId());
-            } else {
-                online.showEntity(plugin, entity);
             }
         }
     }

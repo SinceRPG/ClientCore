@@ -116,12 +116,12 @@ public final class ClientDropService implements Listener {
     }
 
     private void hideFromOthers(Entity entity, Player viewer) {
+        entity.setVisibleByDefault(false);
+        viewer.showEntity(plugin, entity);
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (!online.getUniqueId().equals(viewer.getUniqueId())) {
                 online.hideEntity(plugin, entity);
                 packets.destroyEntity(online, entity.getEntityId());
-            } else {
-                online.showEntity(plugin, entity);
             }
         }
     }
@@ -169,7 +169,14 @@ public final class ClientDropService implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        scheduler.regionLater(event.getPlayer().getLocation(), 20L, task -> refreshFor(event.getPlayer()));
+        Player player = event.getPlayer();
+        for (Map<String, Entity> drops : activeDrops.values()) {
+            for (Entity entity : drops.values()) {
+                player.hideEntity(plugin, entity);
+                packets.destroyEntity(player, entity.getEntityId());
+            }
+        }
+        scheduler.regionLater(player.getLocation(), 20L, task -> refreshFor(player));
     }
 
     @EventHandler

@@ -186,7 +186,12 @@ public final class BlockRegenService implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        scheduler.regionLater(event.getPlayer().getLocation(), joinDelayTicks, task -> refreshAround(event.getPlayer()));
+        Player player = event.getPlayer();
+        for (org.bukkit.entity.BlockDisplay display : activeDisplays) {
+            player.hideEntity(plugin, display);
+            packets.destroyEntity(player, display.getEntityId());
+        }
+        scheduler.regionLater(player.getLocation(), joinDelayTicks, task -> refreshAround(player));
     }
 
     @EventHandler
