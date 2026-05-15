@@ -18,7 +18,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -62,7 +61,7 @@ public final class ClientLootChestService implements Listener {
 
         if (refreshTask != null) refreshTask.cancel();
 
-        long period = configManager.getChests().getLong("client-loot-chests.refresh-period-ticks", 40L);
+        long period = configManager.getChests().getLong("client-loot-chests.refresh-period-ticks", 20L);
         refreshTask = scheduler.globalTimer(20L, period, task -> {
             if (!enabled) return;
             for (Player player : Bukkit.getOnlinePlayers()) {
@@ -82,7 +81,8 @@ public final class ClientLootChestService implements Listener {
 
         for (LootChestRule rule : rules) {
             Location loc = rule.location();
-            if (loc.getWorld() != player.getWorld()) continue;
+            // Bảo vệ Folia: Bỏ qua nếu Chunk của rương chưa được tải
+            if (loc.getWorld() != player.getWorld() || !loc.isChunkLoaded()) continue;
 
             double dist = player.getLocation().distanceSquared(loc);
             boolean inRange = dist <= (refreshRadius * refreshRadius);
@@ -145,14 +145,6 @@ public final class ClientLootChestService implements Listener {
             }
         }
         return 0L;
-    }
-
-    @EventHandler
-    public void onMove(PlayerMoveEvent event) {
-        if (!enabled || event.getTo() == null) return;
-        if (event.getFrom().getBlockX() == event.getTo().getBlockX() && event.getFrom().getBlockZ() == event.getTo().getBlockZ())
-            return;
-        refreshAround(event.getPlayer());
     }
 
     @EventHandler

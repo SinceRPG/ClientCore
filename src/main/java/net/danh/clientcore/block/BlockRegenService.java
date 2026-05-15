@@ -23,7 +23,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
@@ -63,13 +62,6 @@ public final class BlockRegenService implements Listener {
         this.itemBuilder = new ConfigItemBuilder(plugin, hooks);
     }
 
-    private static boolean sameBlock(Location from, Location to) {
-        return from.getWorld() == to.getWorld()
-                && from.getBlockX() == to.getBlockX()
-                && from.getBlockY() == to.getBlockY()
-                && from.getBlockZ() == to.getBlockZ();
-    }
-
     public void reload() {
         this.enabled = configManager.getBlocks().getBoolean("block-regen.enabled", true);
         this.refreshRadius = Math.max(1, configManager.getBlocks().getInt("block-regen.refresh-radius", 10));
@@ -78,7 +70,7 @@ public final class BlockRegenService implements Listener {
         if (refreshTask != null) {
             refreshTask.cancel();
         }
-        long period = Math.max(5L, configManager.getBlocks().getLong("block-regen.refresh-period-ticks", 40L));
+        long period = Math.max(5L, configManager.getBlocks().getLong("block-regen.refresh-period-ticks", 20L));
         refreshTask = scheduler.globalTimer(20L, period, task -> {
             if (!enabled) {
                 return;
@@ -177,17 +169,9 @@ public final class BlockRegenService implements Listener {
     }
 
     @EventHandler
-    public void onMove(PlayerMoveEvent event) {
-        if (!enabled || event.getTo() == null || sameBlock(event.getFrom(), event.getTo())) {
-            return;
-        }
-        refreshAround(event.getPlayer());
-    }
-
-    @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        for (org.bukkit.entity.BlockDisplay display : activeDisplays) {
+        for (BlockDisplay display : activeDisplays) {
             player.hideEntity(plugin, display);
             packets.destroyEntity(player, display.getEntityId());
         }
@@ -216,7 +200,7 @@ public final class BlockRegenService implements Listener {
         }
         Location center = player.getLocation();
         World world = center.getWorld();
-        if (world == null) return;
+        if (world == null || !center.isChunkLoaded()) return;
 
         Map<BlockPos, BlockData> desired = new HashMap<>();
         int baseX = center.getBlockX();
@@ -225,8 +209,11 @@ public final class BlockRegenService implements Listener {
         Set<BlockPos> activeRegen = regenerating.getOrDefault(player.getUniqueId(), Set.of());
 
         for (int x = baseX - refreshRadius; x <= baseX + refreshRadius; x++) {
-            for (int y = Math.max(world.getMinHeight(), baseY - refreshRadius); y <= Math.min(world.getMaxHeight() - 1, baseY + refreshRadius); y++) {
-                for (int z = baseZ - refreshRadius; z <= baseZ + refreshRadius; z++) {
+            // An toàn cho Folia: Phải check chunk load trước khi lấy block
+            if (!world.isChunkLoaded(x >> 4, baseZ >> 4)) continue;
+            for (int z = baseZ - refreshRadius; z <= baseZ + refreshRadius; z++) {
+                if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
+                for (int y = Math.max(world.getMinHeight(), baseY - refreshRadius); y <= Math.min(world.getMaxHeight() - 1, baseY + refreshRadius); y++) {
                     Block block = world.getBlockAt(x, y, z);
                     ruleFor(player, block).ifPresent(match -> {
                         BlockPos pos = BlockPos.of(block);
@@ -249,7 +236,7 @@ public final class BlockRegenService implements Listener {
         restore.removeAll(activeRegen);
         for (BlockPos pos : restore) {
             World posWorld = Bukkit.getWorld(pos.world());
-            if (posWorld == null) {
+            if (posWorld == null || !posWorld.isChunkLoaded(pos.x() >> 4, pos.z() >> 4)) {
                 visible.remove(pos);
                 continue;
             }
@@ -273,7 +260,7 @@ public final class BlockRegenService implements Listener {
         if (visible == null || visible.isEmpty()) return;
         for (BlockPos pos : visible.keySet()) {
             World world = Bukkit.getWorld(pos.world());
-            if (world == null) continue;
+            if (world == null || !world.isChunkLoaded(pos.x() >> 4, pos.z() >> 4)) continue;
             packets.sendBlock(player, pos.blockLocation(world), world.getBlockAt(pos.x(), pos.y(), pos.z()).getBlockData());
         }
     }

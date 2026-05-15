@@ -8,6 +8,7 @@ import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.util.FoliaScheduler;
 import net.danh.clientcore.util.Text;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -32,6 +33,7 @@ public final class ClientNpcService implements Listener {
     private final Map<UUID, Map<String, ClientNpc>> activeNpcs = new ConcurrentHashMap<>();
     private List<NpcRule> rules = List.of();
     private boolean enabled;
+    private int refreshRadius;
     private ScheduledTask refreshTask;
 
     public ClientNpcService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, ConditionEvaluator conditions) {
@@ -45,11 +47,12 @@ public final class ClientNpcService implements Listener {
 
     public void reload() {
         this.enabled = configManager.getNpcs().getBoolean("client-npcs.enabled", true);
+        this.refreshRadius = Math.max(1, configManager.getNpcs().getInt("client-npcs.refresh-radius", 32));
         this.rules = new NpcRuleLoader(plugin, configManager).load();
 
         if (refreshTask != null) refreshTask.cancel();
 
-        long period = configManager.getNpcs().getLong("client-npcs.refresh-period-ticks", 100L);
+        long period = configManager.getNpcs().getLong("client-npcs.refresh-period-ticks", 40L);
         refreshTask = scheduler.globalTimer(20L, period, task -> {
             if (!enabled) return;
             for (Player player : Bukkit.getOnlinePlayers()) {
@@ -74,18 +77,32 @@ public final class ClientNpcService implements Listener {
         Map<String, ClientNpc> spawned = activeNpcs.computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>());
 
         for (NpcRule rule : rules) {
-            boolean passed = conditions.evaluate(player, rule.condition(), rule.conditions()).passed();
-            boolean exists = spawned.containsKey(rule.id());
+            Location loc = rule.location();
+            if (loc.getWorld() != player.getWorld() || !loc.isChunkLoaded()) continue;
 
-            if (passed && !exists) {
-                scheduler.region(rule.location(), () -> {
-                    if (rule.location().getWorld() == null) return;
+            double dist = player.getLocation().distanceSquared(loc);
+            boolean inRange = dist <= (refreshRadius * refreshRadius);
+            boolean passed = conditions.evaluate(player, rule.condition(), rule.conditions()).passed();
+
+            ClientNpc currentNpc = spawned.get(rule.id());
+            // Dọn dẹp NPC bị kẹt nếu entity lõi bị server ép xóa
+            if (currentNpc != null && currentNpc.getHandle() instanceof Entity entity && !entity.isValid()) {
+                spawned.remove(rule.id());
+                currentNpc = null;
+            }
+
+            boolean shouldBeVisible = inRange && passed;
+            boolean exists = currentNpc != null;
+
+            if (shouldBeVisible && !exists) {
+                scheduler.region(loc, () -> {
+                    if (!loc.isChunkLoaded()) return;
                     ClientNpc npc = spawnAbstractNpc(player, rule);
                     if (npc != null) {
                         spawned.put(rule.id(), npc);
                     }
                 });
-            } else if (!passed && exists) {
+            } else if (!shouldBeVisible && exists) {
                 ClientNpc npc = spawned.remove(rule.id());
                 if (npc != null) {
                     npc.remove(player);

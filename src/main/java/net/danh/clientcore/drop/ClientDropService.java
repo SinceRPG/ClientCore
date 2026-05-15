@@ -10,6 +10,7 @@ import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.storage.CooldownManager;
 import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
@@ -38,6 +39,7 @@ public final class ClientDropService implements Listener {
     private final Map<UUID, Map<String, Entity>> activeDrops = new ConcurrentHashMap<>();
     private List<DropRule> rules = List.of();
     private boolean enabled;
+    private int refreshRadius;
     private ScheduledTask refreshTask;
 
     public ClientDropService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, ConditionEvaluator conditions, CooldownManager cooldownManager) {
@@ -53,11 +55,13 @@ public final class ClientDropService implements Listener {
 
     public void reload() {
         this.enabled = configManager.getDrops().getBoolean("client-drops.enabled", true);
+        // Bổ sung bán kính render cho drops
+        this.refreshRadius = Math.max(1, configManager.getDrops().getInt("client-drops.refresh-radius", 15));
         this.rules = new DropRuleLoader(plugin, configManager.getDrops()).load();
 
         if (refreshTask != null) refreshTask.cancel();
 
-        long period = configManager.getDrops().getLong("client-drops.refresh-period-ticks", 100L);
+        long period = configManager.getDrops().getLong("client-drops.refresh-period-ticks", 40L);
         refreshTask = scheduler.globalTimer(20L, period, task -> {
             if (!enabled) return;
             for (Player player : Bukkit.getOnlinePlayers()) {
@@ -88,18 +92,33 @@ public final class ClientDropService implements Listener {
         Map<String, Entity> spawned = activeDrops.computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>());
 
         for (DropRule rule : rules) {
+            Location loc = rule.location();
+            // An toàn cho Folia: Bỏ qua nếu khác World hoặc Chunk chưa được tải
+            if (loc.getWorld() != player.getWorld() || !loc.isChunkLoaded()) continue;
+
+            double dist = player.getLocation().distanceSquared(loc);
+            boolean inRange = dist <= (refreshRadius * refreshRadius);
+
             boolean isOnCooldown = cooldownManager.isOnCooldown(player.getUniqueId(), "drop", rule.id());
             boolean passedConditions = conditions.evaluate(player, rule.condition(), rule.conditions()).passed();
-            boolean shouldSpawn = passedConditions && !isOnCooldown;
-            boolean exists = spawned.containsKey(rule.id());
+            boolean shouldSpawn = inRange && passedConditions && !isOnCooldown;
+
+            Entity currentDrop = spawned.get(rule.id());
+            // Dọn dẹp Ghost Entity nếu nó đã bị server xóa (despawn/clearlag)
+            if (currentDrop != null && (!currentDrop.isValid() || Bukkit.getEntity(currentDrop.getUniqueId()) == null)) {
+                spawned.remove(rule.id());
+                currentDrop = null;
+            }
+
+            boolean exists = currentDrop != null;
 
             if (shouldSpawn && !exists) {
-                scheduler.region(rule.location(), () -> {
-                    if (rule.location().getWorld() == null) return;
+                scheduler.region(loc, () -> {
+                    if (!loc.isChunkLoaded()) return;
                     ItemStack itemStack = itemBuilder.build(player, rule.itemConfig());
                     if (itemStack.isEmpty()) return;
 
-                    Item item = rule.location().getWorld().dropItem(rule.location(), itemStack);
+                    Item item = loc.getWorld().dropItem(loc, itemStack);
                     item.setPickupDelay(0);
                     item.setGravity(false);
                     item.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
