@@ -2,32 +2,28 @@ package net.danh.clientcore.storage;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.mob.SpawnPoint;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import java.sql.*;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class StorageService implements AutoCloseable {
     private final Plugin plugin;
+    private final ConfigManager configManager;
     private final ExecutorService executor;
     private HikariDataSource dataSource;
     private boolean mysql;
 
-    public StorageService(Plugin plugin) {
+    public StorageService(Plugin plugin, ConfigManager configManager) {
         this.plugin = plugin;
+        this.configManager = configManager;
         this.executor = Executors.newSingleThreadExecutor(task -> {
             Thread thread = new Thread(task, "ClientCore-SQL");
             thread.setDaemon(true);
@@ -35,32 +31,39 @@ public final class StorageService implements AutoCloseable {
         });
     }
 
+    private static PlayerStats read(ResultSet result) throws SQLException {
+        return new PlayerStats(
+                UUID.fromString(result.getString("uuid")),
+                result.getString("name"),
+                result.getDouble("luck"),
+                result.getBoolean("excluded_top")
+        );
+    }
+
     public void start() {
-        if (dataSource != null) {
-            return;
-        }
+        if (dataSource != null) return;
         HikariConfig config = new HikariConfig();
-        ConfigurationSection storage = plugin.getConfig().getConfigurationSection("storage");
+        ConfigurationSection storage = configManager.getMain().getConfigurationSection("storage");
         String type = storage == null ? "sqlite" : storage.getString("type", "sqlite").toLowerCase(Locale.ROOT);
         mysql = type.equals("mysql");
+
         if (mysql) {
-            ConfigurationSection mysql = storage.getConfigurationSection("mysql");
-            String host = mysql == null ? "localhost" : mysql.getString("host", "localhost");
-            int port = mysql == null ? 3306 : mysql.getInt("port", 3306);
-            String database = mysql == null ? "clientcore" : mysql.getString("database", "clientcore");
+            ConfigurationSection mysqlSec = storage.getConfigurationSection("mysql");
+            String host = mysqlSec == null ? "localhost" : mysqlSec.getString("host", "localhost");
+            int port = mysqlSec == null ? 3306 : mysqlSec.getInt("port", 3306);
+            String database = mysqlSec == null ? "clientcore" : mysqlSec.getString("database", "clientcore");
             config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database + "?useSSL=false&characterEncoding=utf8&useUnicode=true");
-            config.setUsername(mysql == null ? "root" : mysql.getString("username", "root"));
-            config.setPassword(mysql == null ? "" : mysql.getString("password", ""));
+            config.setUsername(mysqlSec == null ? "root" : mysqlSec.getString("username", "root"));
+            config.setPassword(mysqlSec == null ? "" : mysqlSec.getString("password", ""));
             config.setDriverClassName("com.mysql.cj.jdbc.Driver");
         } else {
             File file = new File(plugin.getDataFolder(), storage == null ? "clientcore.db" : storage.getString("sqlite.file", "clientcore.db"));
             File parent = file.getParentFile();
-            if (parent != null) {
-                parent.mkdirs();
-            }
+            if (parent != null) parent.mkdirs();
             config.setJdbcUrl("jdbc:sqlite:" + file.getAbsolutePath());
             config.setDriverClassName("org.sqlite.JDBC");
         }
+
         config.setPoolName("ClientCorePool");
         config.setMaximumPoolSize(Math.max(1, storage == null ? 4 : storage.getInt("pool.maximum-size", 4)));
         config.setMinimumIdle(Math.max(0, storage == null ? 1 : storage.getInt("pool.minimum-idle", 1)));
@@ -223,6 +226,15 @@ public final class StorageService implements AutoCloseable {
                           updated_at BIGINT NOT NULL
                         )
                         """);
+                statement.executeUpdate("""
+                            CREATE TABLE IF NOT EXISTS clientcore_cooldowns (
+                                uuid VARCHAR(36) NOT NULL,
+                                category VARCHAR(32) NOT NULL,
+                                rule_id VARCHAR(64) NOT NULL,
+                                expires_at BIGINT NOT NULL,
+                                PRIMARY KEY (uuid, category, rule_id)
+                            )
+                        """);
             } catch (SQLException ex) {
                 throw new IllegalStateException("Failed to initialize ClientCore SQL schema", ex);
             }
@@ -247,15 +259,6 @@ public final class StorageService implements AutoCloseable {
             statement.setLong(5, System.currentTimeMillis());
             statement.executeUpdate();
         }
-    }
-
-    private static PlayerStats read(ResultSet result) throws SQLException {
-        return new PlayerStats(
-                UUID.fromString(result.getString("uuid")),
-                result.getString("name"),
-                result.getDouble("luck"),
-                result.getBoolean("excluded_top")
-        );
     }
 
     private void saveSpawnNow(Connection connection, SpawnPoint point) throws SQLException {
@@ -289,6 +292,61 @@ public final class StorageService implements AutoCloseable {
             statement.setBoolean(14, point.enabled());
             statement.setLong(15, System.currentTimeMillis());
             statement.executeUpdate();
+        }
+    }
+
+    public CompletableFuture<Map<String, Long>> loadCooldowns(UUID uuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            Map<String, Long> map = new java.util.concurrent.ConcurrentHashMap<>();
+            try (Connection connection = dataSource.getConnection();
+                 PreparedStatement statement = connection.prepareStatement("SELECT category, rule_id, expires_at FROM clientcore_cooldowns WHERE uuid=?")) {
+                statement.setString(1, uuid.toString());
+                try (ResultSet result = statement.executeQuery()) {
+                    while (result.next()) {
+                        long expires = result.getLong("expires_at");
+                        if (System.currentTimeMillis() < expires) {
+                            map.put(result.getString("category") + ":" + result.getString("rule_id"), expires);
+                        } else {
+                            cleanupCooldown(connection, uuid, result.getString("category"), result.getString("rule_id"));
+                        }
+                    }
+                }
+                return map;
+            } catch (SQLException ex) {
+                throw new IllegalStateException("Failed to load ClientCore cooldowns", ex);
+            }
+        }, executor);
+    }
+
+    public CompletableFuture<Void> saveCooldown(UUID uuid, String category, String ruleId, long expiresAt) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = mysql ? """
+                    INSERT INTO clientcore_cooldowns(uuid, category, rule_id, expires_at) VALUES(?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE expires_at=VALUES(expires_at)
+                    """ : """
+                    INSERT INTO clientcore_cooldowns(uuid, category, rule_id, expires_at) VALUES(?, ?, ?, ?)
+                    ON CONFLICT(uuid, category, rule_id) DO UPDATE SET expires_at=excluded.expires_at
+                    """;
+            try (Connection connection = dataSource.getConnection();
+                 PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, uuid.toString());
+                statement.setString(2, category);
+                statement.setString(3, ruleId);
+                statement.setLong(4, expiresAt);
+                statement.executeUpdate();
+            } catch (SQLException ex) {
+                throw new IllegalStateException("Failed to save ClientCore cooldown", ex);
+            }
+        }, executor);
+    }
+
+    private void cleanupCooldown(Connection connection, UUID uuid, String category, String ruleId) {
+        try (PreparedStatement statement = connection.prepareStatement("DELETE FROM clientcore_cooldowns WHERE uuid=? AND category=? AND rule_id=?")) {
+            statement.setString(1, uuid.toString());
+            statement.setString(2, category);
+            statement.setString(3, ruleId);
+            statement.executeUpdate();
+        } catch (SQLException ignored) {
         }
     }
 

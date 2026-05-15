@@ -25,10 +25,13 @@ storage:
   type: sqlite
 ```
 
-For MySQL, set `storage.type: mysql` and fill host, port, database, username and password. Luck/top data is stored in SQL through HikariCP.
-Client mob spawn points are also stored in SQL. If an old `spawns.yml` exists and the SQL spawn table is empty, ClientCore migrates those spawn points into SQL on startup.
+For MySQL, set `storage.type: mysql` and fill host, port, database, username and password. Luck/top data is stored in
+SQL through HikariCP.
+Client mob spawn points are also stored in SQL. If an old `spawns.yml` exists and the SQL spawn table is empty,
+ClientCore migrates those spawn points into SQL on startup.
 
-The plugin bundles HikariCP only. JDBC drivers are intentionally not shaded to keep `ClientCore-1.0-all.jar` small. Provide the selected driver on the server/plugin classpath:
+The plugin bundles HikariCP only. JDBC drivers are intentionally not shaded to keep `ClientCore-1.0-all.jar` small.
+Provide the selected driver on the server/plugin classpath:
 
 - SQLite: `org.xerial:sqlite-jdbc`
 - MySQL: `com.mysql:mysql-connector-j`
@@ -71,7 +74,8 @@ drops:
     material: STONE
 ```
 
-ClientCore calls the MMOItems API directly. If MMOItems cannot return the item, it falls back to the vanilla `material` entry.
+ClientCore calls the MMOItems API directly. If MMOItems cannot return the item, it falls back to the vanilla `material`
+entry.
 
 ## MythicMobs client mob test
 
@@ -102,7 +106,8 @@ Use these commands in-game:
 /clientcore delspawn mine_zombies
 ```
 
-Spawn data is cached in memory for fast Folia ticks and saved to SQL when edited. The mob spawn loop never queries SQL every tick.
+Spawn data is cached in memory for fast Folia ticks and saved to SQL when edited. The mob spawn loop never queries SQL
+every tick.
 
 ## Luck commands
 
@@ -125,7 +130,8 @@ Admin commands:
 /clientcore luck giveitem <player> <luck> <amount>
 ```
 
-Luck affects weighted variants marked `rare: true`. The config key `luck.max-rare-weight-bonus-percent` caps how much rare weights can be boosted.
+Luck affects weighted variants marked `rare: true`. The config key `luck.max-rare-weight-bonus-percent` caps how much
+rare weights can be boosted.
 Luck top ignores players with `luck <= 0`.
 Luck items are configured under `luck.item` and support the same vanilla ItemMeta config builder as normal drops.
 
@@ -151,10 +157,11 @@ Required lines must pass. Lines ending with `optional` are evaluated but do not 
 Optional lines can start with an id. Variants can require those ids with:
 
 ```yaml
-required-condition-ids: [vip_bonus]
+required-condition-ids: [ vip_bonus ]
 ```
 
-Block and mob rules can use weighted `variants`. A common example is `weight: 90` and a rare option with `weight: 10`, `rare: true`, and `luck-multiplier: 1.0`.
+Block and mob rules can use weighted `variants`. A common example is `weight: 90` and a rare option with `weight: 10`,
+`rare: true`, and `luck-multiplier: 1.0`.
 
 ## GUI editor
 
@@ -167,13 +174,18 @@ Open the in-game editor:
 Current GUI pages:
 
 - Main menu: block rules, mob rules, spawn points, reload.
-- Block rules: paginated rule list, rule detail, full Minecraft block selector for display/source blocks, source block removal with shift-right, condition list editor, and weighted variant editor.
-- Mob rules: paginated rule list, MythicMobs selector populated from the MythicMobs API, fallback entity selector, health/damage controls, condition list editor, and weighted variant editor.
+- Block rules: paginated rule list, rule detail, full Minecraft block selector for display/source blocks, source block
+  removal with shift-right, condition list editor, and weighted variant editor.
+- Mob rules: paginated rule list, MythicMobs selector populated from the MythicMobs API, fallback entity selector,
+  health/damage controls, condition list editor, and weighted variant editor.
 - Spawn list: open every fixed spawn point.
 - Spawn detail: toggle enabled and adjust amount, batch size, radius, interval, max alive and activation range.
-- Drop editor: add/remove drops, choose every Minecraft item material, choose MMOItems type and item from the MMOItems API, and edit common ItemMeta fields such as unbreakable, hide tooltip, glint override, glider, fire resistance, custom model data, max stack size, rarity and enchantable.
+- Drop editor: add/remove drops, choose every Minecraft item material, choose MMOItems type and item from the MMOItems
+  API, and edit common ItemMeta fields such as unbreakable, hide tooltip, glint override, glider, fire resistance,
+  custom model data, max stack size, rarity and enchantable.
 
-For long free text such as conditions, item display names and lore, use commands or YAML. The GUI handles the safe structured choices and numeric/toggle fields.
+For long free text such as conditions, item display names and lore, use commands or YAML. The GUI handles the safe
+structured choices and numeric/toggle fields.
 
 ## Visibility command
 
@@ -201,6 +213,11 @@ Spawn attributes:
 
 ## Notes
 
-- Reflection is intentionally not used. PlaceholderAPI, WorldGuard, MMOItems, MythicMobs, and PacketEvents are called through their APIs.
-- PacketEvents is used for fake block changes and destroy packets. The current grow animation still uses Paper `BlockDisplay` entities because display entity metadata is version-sensitive and much easier to keep stable on Folia through Paper.
-- For fully packet-only mobs, the next step is a dedicated PacketEvents virtual entity tracker with movement, metadata, hit detection, and Mythic skill proxying. MythicMobs itself is server-side, so "all MythicMobs skills fully packet-only" requires re-implementing or intercepting major parts of its runtime.
+- Reflection is intentionally not used. PlaceholderAPI, WorldGuard, MMOItems, MythicMobs, and PacketEvents are called
+  through their APIs.
+- PacketEvents is used for fake block changes and destroy packets. The current grow animation still uses Paper
+  `BlockDisplay` entities because display entity metadata is version-sensitive and much easier to keep stable on Folia
+  through Paper.
+- For fully packet-only mobs, the next step is a dedicated PacketEvents virtual entity tracker with movement, metadata,
+  hit detection, and Mythic skill proxying. MythicMobs itself is server-side, so "all MythicMobs skills fully
+  packet-only" requires re-implementing or intercepting major parts of its runtime.

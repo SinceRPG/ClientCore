@@ -1,0 +1,33 @@
+# ==============================================================================
+# Client-Side NPCs Settings
+# These NPCs are entirely client-side and only visible to players meeting the conditions.
+# You can use Vanilla Bukkit entities, MythicMobs, Citizens, or FancyNpcs.
+# ==============================================================================
+
+client-npcs:
+  enabled: true
+  # How often (in ticks) to evaluate conditions and spawn/remove NPCs near the player.
+  refresh-period-ticks: 100
+
+  rules:
+    guide_npc:
+      enabled: true
+      # Select the plugin/provider used to generate this NPC:
+      # Acceptable values: VANILLA, MYTHICMOBS, CITIZENS, FANCYNPCS
+      provider-type: FANCYNPCS
+      # If provider-type is MYTHICMOBS, enter the mob ID here. Otherwise, leave blank.
+      provider-id: ""
+      # The base entity type to use for the visual model.
+      entity-type: VILLAGER
+      # The floating name above the NPC. Supports placeholders.
+      name: "<yellow>Server Guide"
+      # The player must meet this condition to see the NPC.
+      condition: "%mmocore_level% <= 5"
+      conditions: [ ]
+      location:
+        world: world
+        x: 10.5
+        y: 65.0
+        z: 10.5
+        yaw: 180.0
+        pitch: 0.0

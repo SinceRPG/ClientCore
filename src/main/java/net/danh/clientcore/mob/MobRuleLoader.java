@@ -1,6 +1,7 @@
 package net.danh.clientcore.mob;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.plugin.Plugin;
 
@@ -11,28 +12,29 @@ import java.util.List;
 
 final class MobRuleLoader {
     private final Plugin plugin;
+    private final YamlConfiguration config;
 
-    MobRuleLoader(Plugin plugin) {
+    MobRuleLoader(Plugin plugin, YamlConfiguration config) {
         this.plugin = plugin;
+        this.config = config;
     }
 
     List<MobRule> load() {
         List<MobRule> rules = new ArrayList<>();
-        ConfigurationSection root = plugin.getConfig().getConfigurationSection("client-mobs.rules");
-        if (root == null) {
-            return rules;
-        }
+        ConfigurationSection root = config.getConfigurationSection("client-mobs.rules");
+        if (root == null) return rules;
+
         for (String id : root.getKeys(false)) {
             ConfigurationSection section = root.getConfigurationSection(id);
-            if (section == null || !section.getBoolean("enabled", true)) {
-                continue;
-            }
+            if (section == null || !section.getBoolean("enabled", true)) continue;
+
             EntityType fallback = EntityType.ZOMBIE;
             try {
                 fallback = EntityType.valueOf(section.getString("fallback-entity", "ZOMBIE").toUpperCase());
             } catch (IllegalArgumentException ignored) {
                 plugin.getLogger().warning("Unknown fallback entity for client mob rule " + id);
             }
+
             List<MobVariant> variants = new ArrayList<>();
             for (var value : section.getMapList("variants")) {
                 ConfigurationSection variant = section.createSection("__variant_" + variants.size(), value);

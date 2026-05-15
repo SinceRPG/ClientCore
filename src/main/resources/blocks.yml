@@ -1,0 +1,38 @@
+# ==============================================================================
+# Client-Side Block Regen Settings
+# Modifies how clients see specific blocks based on rules and conditions.
+# Fake block updates are sent with PacketEvents; the real server block remains unchanged.
+# ==============================================================================
+
+block-regen:
+  enabled: true
+  # Determines the rendering radius around the player for fake blocks.
+  refresh-radius: 10
+  # How often (in ticks) to check and resend the blocks to the player.
+  refresh-period-ticks: 40
+  # The default WorldGuard flag name to check if breaking blocks is allowed here.
+  default-worldguard-flag: clientcore-regen
+
+  rules:
+    level-1-bedrock:
+      enabled: true
+      worlds: [ world ]
+      # The blocks that should visually turn into something else.
+      source-blocks: [ STONE, DEEPSLATE ]
+      # The block the player will visually see.
+      display-block: BEDROCK
+      # Legacy single placeholder condition
+      condition: "%mmocore_level% <= 1"
+      conditions: [ ]
+      priority: 100
+      # The amount of time in ticks it takes for the client-side block to visually "respawn" after being broken.
+      regen-ticks: 80
+      grow-animation:
+        enabled: true
+        frames: 12
+        block-display: true
+      # Items that the player will physically receive into their inventory when mining this fake block.
+      drops:
+        - type: vanilla
+          material: COBBLESTONE
+          amount: 1

@@ -13,6 +13,11 @@ import org.bukkit.entity.Player;
 import java.util.Locale;
 
 public final class ClientPacketService {
+    private static String normalizeBlock(BlockData blockData) {
+        String input = blockData.getAsString().toLowerCase(Locale.ROOT);
+        return input.contains(":") ? input : "minecraft:" + input;
+    }
+
     public void sendBlock(Player player, Location location, BlockData blockData) {
         WrappedBlockState state = WrappedBlockState.getByString(normalizeBlock(blockData));
         if (state == null) {
@@ -37,10 +42,5 @@ public final class ClientPacketService {
 
     private void send(Player player, PacketWrapper<?> wrapper) {
         PacketEvents.getAPI().getPlayerManager().sendPacket(player, wrapper);
-    }
-
-    private static String normalizeBlock(BlockData blockData) {
-        String input = blockData.getAsString().toLowerCase(Locale.ROOT);
-        return input.contains(":") ? input : "minecraft:" + input;
     }
 }

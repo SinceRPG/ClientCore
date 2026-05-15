@@ -13,6 +13,8 @@ repositories {
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi/")
     maven("https://mvn.lumine.io/repository/maven-public/")
     maven("https://nexus.phoenixdevt.fr/repository/maven-public/")
+    maven("https://repo.citizensnpcs.co/")
+    maven("https://repo.fancyinnovations.com/releases")
 }
 
 dependencies {
@@ -27,6 +29,9 @@ dependencies {
     compileOnly("io.lumine:Mythic-Dist:5.12.0-SNAPSHOT") { isTransitive = false }
     compileOnly("io.lumine:MythicLib-dist:1.7.1-SNAPSHOT") { isTransitive = false }
     compileOnly("net.Indyuce:MMOItems-API:6.10.1-SNAPSHOT") { isTransitive = false }
+    compileOnly("net.citizensnpcs:citizens-main:2.0.42-SNAPSHOT") { isTransitive = false }
+    compileOnly("de.oliver:FancyNpcs:2.10.0") { isTransitive = false }
+
     implementation("com.zaxxer:HikariCP:7.0.2")
     compileOnly("org.xerial:sqlite-jdbc:3.50.3.0")
     compileOnly("com.mysql:mysql-connector-j:9.6.0")

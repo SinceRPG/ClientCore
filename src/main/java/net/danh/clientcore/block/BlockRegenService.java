@@ -1,12 +1,13 @@
 package net.danh.clientcore.block;
 
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.danh.clientcore.condition.ConditionEvaluator;
+import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.item.ConfigItemBuilder;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.util.FoliaScheduler;
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -29,20 +30,12 @@ import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class BlockRegenService implements Listener {
     private final Plugin plugin;
+    private final ConfigManager configManager;
     private final FoliaScheduler scheduler;
     private final HookRegistry hooks;
     private final ClientPacketService packets;
@@ -57,8 +50,9 @@ public final class BlockRegenService implements Listener {
     private int refreshRadius;
     private ScheduledTask refreshTask;
 
-    public BlockRegenService(Plugin plugin, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, LuckService luck) {
+    public BlockRegenService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, LuckService luck) {
         this.plugin = plugin;
+        this.configManager = configManager;
         this.scheduler = scheduler;
         this.hooks = hooks;
         this.packets = packets;
@@ -67,14 +61,21 @@ public final class BlockRegenService implements Listener {
         this.itemBuilder = new ConfigItemBuilder(plugin, hooks);
     }
 
+    private static boolean sameBlock(Location from, Location to) {
+        return from.getWorld() == to.getWorld()
+                && from.getBlockX() == to.getBlockX()
+                && from.getBlockY() == to.getBlockY()
+                && from.getBlockZ() == to.getBlockZ();
+    }
+
     public void reload() {
-        this.enabled = plugin.getConfig().getBoolean("block-regen.enabled", true);
-        this.refreshRadius = Math.max(1, plugin.getConfig().getInt("block-regen.refresh-radius", 10));
-        this.rules = new BlockRuleLoader(plugin).load();
+        this.enabled = configManager.getBlocks().getBoolean("block-regen.enabled", true);
+        this.refreshRadius = Math.max(1, configManager.getBlocks().getInt("block-regen.refresh-radius", 10));
+        this.rules = new BlockRuleLoader(plugin, configManager.getBlocks()).load();
         if (refreshTask != null) {
             refreshTask.cancel();
         }
-        long period = Math.max(5L, plugin.getConfig().getLong("block-regen.refresh-period-ticks", 40L));
+        long period = Math.max(5L, configManager.getBlocks().getLong("block-regen.refresh-period-ticks", 40L));
         refreshTask = scheduler.globalTimer(20L, period, task -> {
             if (!enabled) {
                 return;
@@ -103,15 +104,12 @@ public final class BlockRegenService implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onBreak(BlockBreakEvent event) {
-        if (!enabled) {
-            return;
-        }
+        if (!enabled) return;
         Player player = event.getPlayer();
         Block block = event.getBlock();
         Optional<BlockMatch> optionalMatch = ruleFor(player, block);
-        if (optionalMatch.isEmpty()) {
-            return;
-        }
+        if (optionalMatch.isEmpty()) return;
+
         BlockMatch match = optionalMatch.get();
         BlockRule rule = match.rule();
         BlockVariant variant = match.variant();
@@ -169,18 +167,15 @@ public final class BlockRegenService implements Listener {
     }
 
     public void refreshAround(Player player) {
-        if (!player.isOnline()) {
-            return;
-        }
+        if (!player.isOnline()) return;
         if (!enabled) {
             restoreVisible(player);
             return;
         }
         Location center = player.getLocation();
         World world = center.getWorld();
-        if (world == null) {
-            return;
-        }
+        if (world == null) return;
+
         Map<BlockPos, BlockData> desired = new HashMap<>();
         int baseX = center.getBlockX();
         int baseY = center.getBlockY();
@@ -221,14 +216,10 @@ public final class BlockRegenService implements Listener {
 
     private void restoreVisible(Player player) {
         Map<BlockPos, BlockData> visible = visibleBlocks.remove(player.getUniqueId());
-        if (visible == null || visible.isEmpty()) {
-            return;
-        }
+        if (visible == null || visible.isEmpty()) return;
         for (BlockPos pos : visible.keySet()) {
             World world = Bukkit.getWorld(pos.world());
-            if (world == null) {
-                continue;
-            }
+            if (world == null) continue;
             packets.sendBlock(player, pos.blockLocation(world), world.getBlockAt(pos.x(), pos.y(), pos.z()).getBlockData());
         }
     }
@@ -236,19 +227,12 @@ public final class BlockRegenService implements Listener {
     private Optional<BlockMatch> ruleFor(Player player, Block block) {
         String worldName = block.getWorld().getName().toLowerCase(Locale.ROOT);
         for (BlockRule rule : rules) {
-            if (!rule.worlds().isEmpty() && !rule.worlds().contains(worldName)) {
-                continue;
-            }
-            if (!rule.sourceBlocks().isEmpty() && !rule.sourceBlocks().contains(block.getType())) {
-                continue;
-            }
-            if (!hooks.worldGuardFlagAllows(player, block.getLocation(), rule.worldGuardFlag())) {
-                continue;
-            }
+            if (!rule.worlds().isEmpty() && !rule.worlds().contains(worldName)) continue;
+            if (!rule.sourceBlocks().isEmpty() && !rule.sourceBlocks().contains(block.getType())) continue;
+            if (!hooks.worldGuardFlagAllows(player, block.getLocation(), rule.worldGuardFlag())) continue;
+
             ConditionEvaluator.Evaluation evaluation = conditions.evaluate(player, rule.condition(), rule.conditions());
-            if (!evaluation.passed()) {
-                continue;
-            }
+            if (!evaluation.passed()) continue;
             return Optional.of(new BlockMatch(rule, chooseVariant(player, rule, BlockPos.of(block), evaluation.passedOptionalIds())));
         }
         return Optional.empty();
@@ -258,40 +242,31 @@ public final class BlockRegenService implements Listener {
         List<BlockVariant> eligible = rule.variants().stream()
                 .filter(variant -> variant.requiredConditionIds().isEmpty() || passedConditionIds.containsAll(variant.requiredConditionIds()))
                 .toList();
-        if (eligible.isEmpty()) {
+        if (eligible.isEmpty())
             eligible = rule.variants().stream().filter(variant -> variant.requiredConditionIds().isEmpty()).toList();
-        }
-        if (eligible.isEmpty()) {
-            eligible = rule.variants();
-        }
-        if (eligible.size() == 1) {
-            return eligible.getFirst();
-        }
+        if (eligible.isEmpty()) eligible = rule.variants();
+        if (eligible.size() == 1) return eligible.getFirst();
+
         double playerLuck = luck.luck(player);
         double total = 0.0D;
         for (BlockVariant variant : eligible) {
             total += adjustedWeight(variant.weight(), variant.rare(), variant.luckMultiplier(), playerLuck);
         }
-        if (total <= 0.0D) {
-            return eligible.getFirst();
-        }
+        if (total <= 0.0D) return eligible.getFirst();
+
         long seed = player.getUniqueId().getMostSignificantBits() ^ pos.hashCode() ^ rule.id().hashCode();
         double roll = new Random(seed).nextDouble(total);
         double cursor = 0.0D;
         for (BlockVariant variant : eligible) {
             cursor += adjustedWeight(variant.weight(), variant.rare(), variant.luckMultiplier(), playerLuck);
-            if (roll <= cursor) {
-                return variant;
-            }
+            if (roll <= cursor) return variant;
         }
         return eligible.getLast();
     }
 
     private double adjustedWeight(double base, boolean rare, double multiplier, double playerLuck) {
-        if (!rare || playerLuck <= 0.0D) {
-            return base;
-        }
-        double maxBonus = Math.max(0.0D, plugin.getConfig().getDouble("luck.max-rare-weight-bonus-percent", 300.0D)) / 100.0D;
+        if (!rare || playerLuck <= 0.0D) return base;
+        double maxBonus = Math.max(0.0D, configManager.getMain().getDouble("luck.max-rare-weight-bonus-percent", 300.0D)) / 100.0D;
         double bonus = Math.min(maxBonus, playerLuck * Math.max(0.0D, multiplier) / 100.0D);
         return base * (1.0D + bonus);
     }
@@ -312,17 +287,13 @@ public final class BlockRegenService implements Listener {
                         });
             }
         }
-        if (!items.isEmpty()) {
-            player.give(items);
-        }
+        if (!items.isEmpty()) player.give(items);
     }
 
     private void animate(Player viewer, Location blockLocation, BlockData blockData, int frames, int totalTicks) {
         Location spawnLocation = blockLocation.clone().add(0.5D, 0.5D, 0.5D);
         World world = spawnLocation.getWorld();
-        if (world == null) {
-            return;
-        }
+        if (world == null) return;
         BlockDisplay display = (BlockDisplay) world.spawnEntity(spawnLocation, EntityType.BLOCK_DISPLAY);
         activeDisplays.add(display);
         display.setBlock(blockData);
@@ -352,13 +323,6 @@ public final class BlockRegenService implements Listener {
                 frame++;
             }
         });
-    }
-
-    private static boolean sameBlock(Location from, Location to) {
-        return from.getWorld() == to.getWorld()
-                && from.getBlockX() == to.getBlockX()
-                && from.getBlockY() == to.getBlockY()
-                && from.getBlockZ() == to.getBlockZ();
     }
 
     private record BlockMatch(BlockRule rule, BlockVariant variant) {

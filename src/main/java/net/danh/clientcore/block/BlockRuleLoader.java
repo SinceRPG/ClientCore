@@ -4,20 +4,18 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Registry;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
 final class BlockRuleLoader {
     private final Plugin plugin;
+    private final YamlConfiguration config;
 
-    BlockRuleLoader(Plugin plugin) {
+    BlockRuleLoader(Plugin plugin, YamlConfiguration config) {
         this.plugin = plugin;
+        this.config = config;
     }
 
     List<BlockRule> load() {
@@ -25,11 +23,11 @@ final class BlockRuleLoader {
         Set<String> blockNames = Registry.BLOCK.keyStream()
                 .map(key -> key.getKey().toUpperCase(Locale.ROOT))
                 .collect(java.util.stream.Collectors.toSet());
-        ConfigurationSection root = plugin.getConfig().getConfigurationSection("block-regen.rules");
+        ConfigurationSection root = config.getConfigurationSection("block-regen.rules");
         if (root == null) {
             return rules;
         }
-        String defaultFlag = plugin.getConfig().getString("block-regen.default-worldguard-flag", "clientcore-regen");
+        String defaultFlag = config.getString("block-regen.default-worldguard-flag", "clientcore-regen");
         for (String id : root.getKeys(false)) {
             ConfigurationSection section = root.getConfigurationSection(id);
             if (section == null || !section.getBoolean("enabled", true)) {

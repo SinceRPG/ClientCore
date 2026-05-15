@@ -3,9 +3,9 @@ package net.danh.clientcore.condition;
 import net.danh.clientcore.hook.HookRegistry;
 import org.bukkit.entity.Player;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -15,6 +15,22 @@ public final class ConditionEvaluator {
 
     public ConditionEvaluator(HookRegistry hooks) {
         this.hooks = hooks;
+    }
+
+    private static String strip(String input) {
+        String trimmed = input.trim();
+        if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            return trimmed.substring(1, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    private static Double number(String input) {
+        try {
+            return Double.parseDouble(input.replace(",", "."));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     public boolean test(Player player, String expression) {
@@ -96,22 +112,6 @@ public final class ConditionEvaluator {
             case "ends_with" -> left.toLowerCase().endsWith(right.toLowerCase());
             default -> false;
         };
-    }
-
-    private static String strip(String input) {
-        String trimmed = input.trim();
-        if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-            return trimmed.substring(1, trimmed.length() - 1);
-        }
-        return trimmed;
-    }
-
-    private static Double number(String input) {
-        try {
-            return Double.parseDouble(input.replace(",", "."));
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
     }
 
     public record Evaluation(boolean passed, Set<String> passedOptionalIds) {

@@ -1,0 +1,43 @@
+# ==============================================================================
+# Client-Side Loot Chests Settings
+# Sends fake chest blocks to the client. Upon right-clicking the block,
+# a custom virtual inventory containing the defined loot is opened.
+# Supports cooldowns to prevent infinite looting.
+# ==============================================================================
+
+client-loot-chests:
+  enabled: true
+  # Rendering distance radius in blocks for the fake chest.
+  refresh-radius: 15
+  # How often (in ticks) to check bounds and send packet block updates.
+  refresh-period-ticks: 40
+
+  rules:
+    hidden_reward_chest:
+      enabled: true
+      # The block visual to send. Use CHEST, ENDER_CHEST, TRAPPED_CHEST, BARREL, etc.
+      display-block: CHEST
+      # Title for the UI inventory window that opens upon interaction.
+      gui-title: "<gold>Reward Chest"
+      condition: "%mmocore_level% >= 2"
+      conditions: [ ]
+
+      # Cooldown rules read top-to-bottom.
+      cooldowns:
+        - condition: "%mmocore_level% >= 10"
+          duration-ticks: 6000 # 5 minutes cooldown for high level players
+        - condition: ""
+          duration-ticks: 12000 # 10 minutes default cooldown for everyone else
+
+      location:
+        world: world
+        x: 20
+        y: 65
+        z: 20
+
+      # The specific items placed into the generated loot inventory.
+      drops:
+        - type: vanilla
+          material: GOLD_INGOT
+          amount: 5
+          name: "<yellow>Reward Gold"

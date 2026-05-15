@@ -1,25 +1,16 @@
-# ClientCore configuration
+# ==============================================================================
+# ClientCore Main Configuration
 # Target server: Paper/Folia 26.1.2 only.
-# PacketEvents is required. PlaceholderAPI, WorldGuard, MMOItems and MythicMobs are optional API hooks.
-#
-# Commands:
-# /clientcore editor
-# /clientcore reload
-# /clientcore refresh
-# /clientcore setspawn <id>
-# /clientcore spawnattr <id> <attribute> <value>
-# /clientcore spawns
+# ==============================================================================
 
 settings:
+  # Enable for verbose console logs during operations (helpful for debugging).
   debug: false
 
 storage:
-  # Player runtime data is stored in SQL. Use sqlite for a single server,
-  # or mysql when multiple server nodes need the same luck/top data.
-  # HikariCP is bundled, but JDBC drivers are intentionally NOT bundled to keep the jar small.
-  # Provide the selected JDBC driver on the server/plugin classpath:
-  # - SQLite: org.xerial:sqlite-jdbc
-  # - MySQL: com.mysql:mysql-connector-j
+  # Player runtime data and cooldowns are stored in SQL.
+  # Use 'sqlite' for a single server, or 'mysql' if you are sharing data across a network proxy.
+  # Note: The required JDBC driver must be available on the server classpath.
   type: sqlite
   sqlite:
     file: clientcore.db
@@ -35,252 +26,28 @@ storage:
     connection-timeout-ms: 10000
 
 luck:
-  # Luck increases rare weighted block/mob variants.
-  # Formula for rare variants: finalWeight = baseWeight * (1 + min(maxBonus, luck * luckMultiplier / 100)).
+  # Luck increases the chance of rolling a "rare" variant for block drops, mob spawns, etc.
+  # Formula: finalWeight = baseWeight * (1 + min(maxBonus, luck * luckMultiplier / 100)).
   max-rare-weight-bonus-percent: 300.0
   item:
-    # This item can be given with:
-    # /clientcore luck giveitem <player> <luck> <amount>
-    # Right-clicking it consumes one item and adds the stored luck amount.
+    # Settings for a physical item representing Luck.
+    # Administrators can give this item via: /clientcore luck giveitem <player> <luck> <amount>
     material: RABBIT_FOOT
     amount: 1
     name: "<gold>Luck Token"
     item-name: "<gold>Luck Token"
     lore:
-      - "<gray>Right-click to gain luck."
+      - "<gray>Right-click to consume and gain luck."
     rarity: RARE
     enchantment-glint: true
-    hide-flags: [HIDE_ATTRIBUTES, HIDE_ENCHANTS]
-
-messages:
-  luck-item-used: "<green>You gained <white>%amount%</white> luck."
-
-gui:
-  # Most GUI text/icon choices live here so the editor can be re-skinned without recompiling.
-  # Dynamic item names such as rule ids, material ids and MythicMob ids are generated from live data.
-  titles:
-    main: "ClientCore Editor"
-    blocks: "Block Rules"
-    block-rule: "Block Rule"
-    mobs: "Mob Rules"
-    mob-rule: "Mob Rule"
-    spawns: "Spawn Points"
-    spawn: "Spawn"
-    drops: "Drops"
-    drop: "Drop"
-  icons:
-    filler:
-      material: BLACK_STAINED_GLASS_PANE
-      name: " "
-      lore: []
-    nav.back:
-      material: BARRIER
-      name: "<yellow>Back"
-      lore: ["<gray>Return to the previous menu."]
-    nav.prev:
-      material: ARROW
-      name: "<yellow>Previous Page"
-      lore: []
-    nav.next:
-      material: ARROW
-      name: "<yellow>Next Page"
-      lore: []
-    main.blocks:
-      material: GRASS_BLOCK
-      name: "<green>Block Rules"
-      lore: ["<gray>Edit fake block regen rules."]
-    main.mobs:
-      material: ZOMBIE_HEAD
-      name: "<green>Mob Rules"
-      lore: ["<gray>Edit client-side MythicMob rules."]
-    main.spawns:
-      material: SPAWNER
-      name: "<green>Spawn Points"
-      lore: ["<gray>Edit fixed spawn locations."]
-    main.vanilla_items:
-      material: CHEST
-      name: "<green>Vanilla Drop Items"
-      lore: ["<gray>Browse every Minecraft item material."]
-    main.reload:
-      material: LIME_DYE
-      name: "<green>Save & Reload"
-      lore: ["<gray>Apply all configuration changes."]
+    hide-flags: [ HIDE_ATTRIBUTES, HIDE_ENCHANTS ]
 
 hooks:
-  # These are real API calls, not reflection.
+  # Toggle hooks to third-party plugins on or off.
+  # Set these to false if the plugin is not installed to prevent errors.
   placeholderapi: true
   worldguard: true
   mmoitems: true
   mythicmobs: true
-
-block-regen:
-  # Fake block updates are sent with PacketEvents.
-  # The real server block is not changed.
-  enabled: true
-
-  # Radius around each player to paint fake blocks.
-  # Keep this reasonable on Folia. 8-14 is usually enough for mining areas.
-  refresh-radius: 10
-
-  # Periodic self-heal for fake block state.
-  # This restores blocks that no longer match a rule, fixes admin edits,
-  # and keeps player-specific scaling stable when placeholders change.
-  refresh-period-ticks: 40
-
-  # ClientCore registers this WorldGuard state flag at load.
-  # Set it with: /rg flag <region> clientcore-regen allow
-  default-worldguard-flag: clientcore-regen
-
-  rules:
-    level-1-bedrock:
-      enabled: true
-      worlds: [world]
-      source-blocks: [STONE, DEEPSLATE]
-      display-block: BEDROCK
-      condition: "%mmocore_level% <= 1"
-      # New multi-condition format:
-      # - "%placeholder%;operator;value" means required.
-      # - "%placeholder%;operator;value;optional" means optional without an id.
-      # - "id;%placeholder%;operator;value;optional" means optional and exposes the id to variants.
-      # Supported operators: <=, >=, <, >, ==, !=, contains, starts_with, ends_with.
-      conditions:
-        - "%mmocore_level%;<=;1"
-        - "vip_bonus;%luckperms_has_permission_clientcore.vip%;==;yes;optional"
-      priority: 100
-      regen-ticks: 80
-      # Optional weighted variants. If omitted, display-block/drops above are used as the default variant.
-      variants:
-        - id: common-bedrock
-          display-block: BEDROCK
-          weight: 90
-          rare: false
-        - id: lucky-coal-preview
-          display-block: COAL_ORE
-          weight: 10
-          rare: true
-          luck-multiplier: 1.0
-          # If set, this variant is only eligible when all listed optional condition ids passed.
-          required-condition-ids: [vip_bonus]
-      grow-animation:
-        enabled: true
-        frames: 12
-        block-display: true
-      drops:
-        - type: vanilla
-          material: COBBLESTONE
-          amount: 1
-          name: "<gray>Training Stone"
-          lore:
-            - "<dark_gray>Client-side mining drop"
-          unbreakable: false
-          custom-model-data: 0
-          hide-flags: [HIDE_ATTRIBUTES, HIDE_ENCHANTS, HIDE_UNBREAKABLE]
-
-    level-2-to-5-coal:
-      enabled: true
-      worlds: [world]
-      source-blocks: [STONE, DEEPSLATE]
-      display-block: COAL_ORE
-      condition: "%mmocore_level% >= 2 & %mmocore_level% <= 5"
-      priority: 90
-      regen-ticks: 120
-      grow-animation:
-        enabled: true
-        frames: 16
-        block-display: true
-      drops:
-        - type: vanilla
-          material: COAL
-          amount: 1
-          name: "<dark_gray>Client Coal"
-
-    level-6-to-10-iron:
-      enabled: false
-      worlds: [world]
-      source-blocks: [STONE, DEEPSLATE]
-      display-block: IRON_ORE
-      condition: "%mmocore_level% >= 6 & %mmocore_level% <= 10"
-      priority: 80
-      regen-ticks: 160
-      grow-animation:
-        enabled: true
-        frames: 16
-        block-display: true
-      drops:
-        - type: vanilla
-          material: RAW_IRON
-          amount: 1
-
-    mmoitems-drop-example:
-      enabled: false
-      worlds: [world]
-      source-blocks: [STONE]
-      display-block: DIAMOND_ORE
-      condition: "%mmocore_level% >= 10"
-      priority: 70
-      regen-ticks: 200
-      grow-animation:
-        enabled: true
-        frames: 18
-        block-display: true
-      drops:
-        - type: mmoitems
-          mmo-type: MATERIAL
-          mmo-id: RARE_STONE
-          # Fallback if MMOItems cannot build the item.
-          material: DIAMOND
-          amount: 1
-
-client-mobs:
-  # MythicMobs is used through its API.
-  # Mobs are owner-scoped: other players receive destroy packets and cannot target/damage them.
-  enabled: true
-  max-distance: 48
-
-  rules:
-    low-level-zombie:
-      enabled: true
-      mythicmob-id: ZombieA
-      fallback-entity: ZOMBIE
-      condition: "%mmocore_level% <= 1"
-      conditions:
-        - "%mmocore_level%;<=;1"
-        - "vip_bonus;%luckperms_has_permission_clientcore.vip%;==;yes;optional"
-      variants:
-        - id: common
-          mythicmob-id: ZombieA
-          fallback-entity: ZOMBIE
-          weight: 90
-          rare: false
-          health: 20.0
-          damage: 2.0
-        - id: lucky
-          mythicmob-id: ZombieB
-          fallback-entity: ZOMBIE
-          weight: 10
-          rare: true
-          luck-multiplier: 1.0
-          required-condition-ids: [vip_bonus]
-          health: 28.0
-          damage: 3.0
-      priority: 100
-      health: 20.0
-      damage: 2.0
-
-    mid-level-zombie:
-      enabled: true
-      mythicmob-id: ZombieB
-      fallback-entity: ZOMBIE
-      condition: "%mmocore_level% >= 2 & %mmocore_level% <= 5"
-      priority: 90
-      health: 40.0
-      damage: 4.0
-
-    elite-skeleton-example:
-      enabled: false
-      mythicmob-id: EliteSkeleton
-      fallback-entity: SKELETON
-      condition: "%mmocore_level% >= 6"
-      priority: 80
-      health: 60.0
-      damage: 7.0
+  citizens: true
+  fancynpcs: true

@@ -1,0 +1,32 @@
+# ==============================================================================
+# Client-Side Drops Settings
+# Physical ground items that are instanced to the specific player.
+# Supports advanced conditional cooldowns so drops only reappear after a set time.
+# ==============================================================================
+
+client-drops:
+  enabled: true
+  refresh-period-ticks: 100
+
+  rules:
+    rare_tutorial_stone:
+      enabled: true
+      condition: "%mmocore_level% >= 1"
+      conditions: [ ]
+      # Cooldowns read top-to-bottom. The logic selects the duration of the FIRST condition that passes.
+      cooldowns:
+        - condition: "%luckperms_has_permission_vip% == true"
+          duration-ticks: 1200 # VIPs only have to wait 1 minute for this item to respawn
+        - condition: "" # A blank condition string acts as a universal fallback.
+          duration-ticks: 6000 # Default players wait 5 minutes
+      location:
+        world: world
+        x: 15.5
+        y: 65.0
+        z: 15.5
+      item:
+        material: DIAMOND
+        amount: 1
+        name: "<aqua>Rare Tutorial Diamond"
+        lore:
+          - "<gray>Only visible to you."

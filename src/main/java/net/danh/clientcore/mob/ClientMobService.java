@@ -1,23 +1,20 @@
 package net.danh.clientcore.mob;
 
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.danh.clientcore.condition.ConditionEvaluator;
+import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.storage.StorageService;
 import net.danh.clientcore.util.FoliaScheduler;
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.entity.Damageable;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Mob;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -29,18 +26,13 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class ClientMobService implements Listener {
     private final Plugin plugin;
+    private final ConfigManager configManager;
     private final FoliaScheduler scheduler;
     private final HookRegistry hooks;
     private final ClientPacketService packets;
@@ -59,8 +51,9 @@ public final class ClientMobService implements Listener {
     private boolean enabled;
     private ScheduledTask spawnTask;
 
-    public ClientMobService(Plugin plugin, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, LuckService luck, StorageService storage) {
+    public ClientMobService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, LuckService luck, StorageService storage) {
         this.plugin = plugin;
+        this.configManager = configManager;
         this.scheduler = scheduler;
         this.hooks = hooks;
         this.packets = packets;
@@ -73,11 +66,9 @@ public final class ClientMobService implements Listener {
     }
 
     public void reload() {
-        this.enabled = plugin.getConfig().getBoolean("client-mobs.enabled", true);
-        this.rules = new MobRuleLoader(plugin).load();
-        if (spawnTask != null) {
-            spawnTask.cancel();
-        }
+        this.enabled = configManager.getMobs().getBoolean("client-mobs.enabled", true);
+        this.rules = new MobRuleLoader(plugin, configManager.getMobs()).load();
+        if (spawnTask != null) spawnTask.cancel();
         spawnTask = scheduler.globalTimer(20L, 20L, task -> tickSpawns());
     }
 
@@ -115,35 +106,33 @@ public final class ClientMobService implements Listener {
     }
 
     public Optional<Entity> spawnFor(Player viewer, Location location, String ruleId, double level, String spawnId) {
-        if (!enabled) {
-            return Optional.empty();
-        }
+        if (!enabled) return Optional.empty();
+
         Optional<MobMatch> optional = rules.stream()
                 .filter(rule -> ruleId == null || ruleId.isBlank() || rule.id().equalsIgnoreCase(ruleId) || rule.variants().stream().anyMatch(variant -> variant.mythicMobId().equalsIgnoreCase(ruleId)))
                 .map(rule -> new MobMatch(rule, conditions.evaluate(viewer, rule.condition(), rule.conditions())))
                 .filter(match -> match.evaluation().passed())
                 .max(Comparator.comparingInt(match -> match.rule().priority()));
-        if (optional.isEmpty()) {
-            return Optional.empty();
-        }
+
+        if (optional.isEmpty()) return Optional.empty();
+
         MobRule rule = optional.get().rule();
         MobVariant variant = chooseVariant(viewer, rule, optional.get().evaluation().passedOptionalIds());
         World world = location.getWorld();
-        if (world == null) {
-            return Optional.empty();
-        }
+        if (world == null) return Optional.empty();
+
         Entity entity = hooks.mythicMob(variant.mythicMobId(), location, level)
                 .orElseGet(() -> world.spawnEntity(location, variant.fallbackEntity()));
         entity.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, viewer.getUniqueId().toString());
         if (spawnId != null && !spawnId.isBlank()) {
             entity.getPersistentDataContainer().set(spawnKey, PersistentDataType.STRING, spawnId);
         }
+
         owners.put(entity.getUniqueId(), viewer.getUniqueId());
         clientEntities.put(entity.getUniqueId(), entity);
         entityIds.put(entity.getUniqueId(), entity.getEntityId());
-        if (spawnId != null && !spawnId.isBlank()) {
-            ownerSpawns.put(entity.getUniqueId(), spawnId);
-        }
+        if (spawnId != null && !spawnId.isBlank()) ownerSpawns.put(entity.getUniqueId(), spawnId);
+
         if (entity instanceof LivingEntity living) {
             living.setRemoveWhenFarAway(false);
             applyStats(living, variant);
@@ -177,9 +166,7 @@ public final class ClientMobService implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        for (int entityId : entityIds.values()) {
-            packets.destroyEntity(event.getPlayer(), entityId);
-        }
+        for (int entityId : entityIds.values()) packets.destroyEntity(event.getPlayer(), entityId);
     }
 
     @EventHandler
@@ -188,9 +175,7 @@ public final class ClientMobService implements Listener {
         for (Map.Entry<UUID, UUID> entry : owners.entrySet()) {
             if (entry.getValue().equals(viewerId)) {
                 Entity entity = clientEntities.get(entry.getKey());
-                if (entity != null) {
-                    entity.getScheduler().execute(plugin, entity::remove, null, 1L);
-                }
+                if (entity != null) entity.getScheduler().execute(plugin, entity::remove, null, 1L);
             }
         }
         owners.entrySet().removeIf(entry -> entry.getValue().equals(viewerId));
@@ -202,9 +187,7 @@ public final class ClientMobService implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onTarget(EntityTargetLivingEntityEvent event) {
         UUID owner = ownerOf(event.getEntity());
-        if (owner == null) {
-            return;
-        }
+        if (owner == null) return;
         if (!(event.getTarget() instanceof Player player) || !player.getUniqueId().equals(owner)) {
             event.setCancelled(true);
         }
@@ -232,77 +215,56 @@ public final class ClientMobService implements Listener {
 
     @EventHandler
     public void onDeath(EntityDeathEvent event) {
-        if (ownerOf(event.getEntity()) != null) {
-            forget(event.getEntity().getUniqueId());
-        }
+        if (ownerOf(event.getEntity()) != null) forget(event.getEntity().getUniqueId());
     }
 
     private void applyStats(LivingEntity entity, MobVariant variant) {
         AttributeInstance maxHealth = entity.getAttribute(Attribute.MAX_HEALTH);
-        if (maxHealth != null) {
-            maxHealth.setBaseValue(variant.health());
-        }
+        if (maxHealth != null) maxHealth.setBaseValue(variant.health());
         entity.setHealth(Math.min(variant.health(), entity.getMaxHealth()));
         AttributeInstance attack = entity.getAttribute(Attribute.ATTACK_DAMAGE);
-        if (attack != null) {
-            attack.setBaseValue(variant.damage());
-        }
+        if (attack != null) attack.setBaseValue(variant.damage());
     }
 
     private MobVariant chooseVariant(Player player, MobRule rule, Set<String> passedConditionIds) {
         List<MobVariant> eligible = rule.variants().stream()
                 .filter(variant -> variant.requiredConditionIds().isEmpty() || passedConditionIds.containsAll(variant.requiredConditionIds()))
                 .toList();
-        if (eligible.isEmpty()) {
+        if (eligible.isEmpty())
             eligible = rule.variants().stream().filter(variant -> variant.requiredConditionIds().isEmpty()).toList();
-        }
-        if (eligible.isEmpty()) {
-            eligible = rule.variants();
-        }
-        if (eligible.size() == 1) {
-            return eligible.getFirst();
-        }
+        if (eligible.isEmpty()) eligible = rule.variants();
+        if (eligible.size() == 1) return eligible.getFirst();
+
         double playerLuck = luck.luck(player);
         double total = 0.0D;
         for (MobVariant variant : eligible) {
             total += adjustedWeight(variant.weight(), variant.rare(), variant.luckMultiplier(), playerLuck);
         }
-        if (total <= 0.0D) {
-            return eligible.getFirst();
-        }
+        if (total <= 0.0D) return eligible.getFirst();
+
         double roll = random.nextDouble(total);
         double cursor = 0.0D;
         for (MobVariant variant : eligible) {
             cursor += adjustedWeight(variant.weight(), variant.rare(), variant.luckMultiplier(), playerLuck);
-            if (roll <= cursor) {
-                return variant;
-            }
+            if (roll <= cursor) return variant;
         }
         return eligible.getLast();
     }
 
     private double adjustedWeight(double base, boolean rare, double multiplier, double playerLuck) {
-        if (!rare || playerLuck <= 0.0D) {
-            return base;
-        }
-        double maxBonus = Math.max(0.0D, plugin.getConfig().getDouble("luck.max-rare-weight-bonus-percent", 300.0D)) / 100.0D;
+        if (!rare || playerLuck <= 0.0D) return base;
+        double maxBonus = Math.max(0.0D, configManager.getMain().getDouble("luck.max-rare-weight-bonus-percent", 300.0D)) / 100.0D;
         double bonus = Math.min(maxBonus, playerLuck * Math.max(0.0D, multiplier) / 100.0D);
         return base * (1.0D + bonus);
     }
 
     private void tickSpawns() {
-        if (!enabled) {
-            return;
-        }
+        if (!enabled) return;
         long tick = spawnTick.incrementAndGet() * 20L;
         for (SpawnPoint point : spawns.all()) {
-            if (!point.enabled() || tick % point.intervalTicks() != 0) {
-                continue;
-            }
+            if (!point.enabled() || tick % point.intervalTicks() != 0) continue;
             Location center = point.location();
-            if (center == null || center.getWorld() == null) {
-                continue;
-            }
+            if (center == null || center.getWorld() == null) continue;
             for (Player player : Bukkit.getOnlinePlayers()) {
                 player.getScheduler().execute(plugin, () -> tickSpawnPointForPlayer(point, player), null, 1L);
             }
@@ -310,16 +272,12 @@ public final class ClientMobService implements Listener {
     }
 
     private void tickSpawnPointForPlayer(SpawnPoint point, Player player) {
-        if (!enabled) {
-            return;
-        }
+        if (!enabled) return;
         Location center = point.location();
-        if (center == null || center.getWorld() == null) {
+        if (center == null || center.getWorld() == null) return;
+        if (player.getWorld() != center.getWorld() || player.getLocation().distanceSquared(center) > point.activationRange() * point.activationRange())
             return;
-        }
-        if (player.getWorld() != center.getWorld() || player.getLocation().distanceSquared(center) > point.activationRange() * point.activationRange()) {
-            return;
-        }
+
         int alive = aliveFor(player.getUniqueId(), point.id());
         int canSpawn = Math.min(point.batchSize(), Math.min(point.amount(), point.maxAlive() - alive));
         for (int i = 0; i < canSpawn; i++) {
@@ -331,9 +289,7 @@ public final class ClientMobService implements Listener {
     private int aliveFor(UUID owner, String spawnId) {
         int count = 0;
         for (Map.Entry<UUID, UUID> entry : owners.entrySet()) {
-            if (!entry.getValue().equals(owner) || !spawnId.equals(ownerSpawns.get(entry.getKey()))) {
-                continue;
-            }
+            if (!entry.getValue().equals(owner) || !spawnId.equals(ownerSpawns.get(entry.getKey()))) continue;
             count++;
         }
         return count;
@@ -365,9 +321,7 @@ public final class ClientMobService implements Listener {
 
     private UUID ownerOf(Entity entity) {
         String value = entity.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
-        if (value == null) {
-            return owners.get(entity.getUniqueId());
-        }
+        if (value == null) return owners.get(entity.getUniqueId());
         try {
             return UUID.fromString(value);
         } catch (IllegalArgumentException ignored) {

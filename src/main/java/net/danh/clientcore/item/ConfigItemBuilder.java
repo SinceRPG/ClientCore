@@ -29,6 +29,14 @@ public final class ConfigItemBuilder {
         this.hooks = hooks;
     }
 
+    private static NamespacedKey key(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        NamespacedKey parsed = NamespacedKey.fromString(raw.toLowerCase(Locale.ROOT));
+        return parsed == null ? NamespacedKey.minecraft(raw.toLowerCase(Locale.ROOT)) : parsed;
+    }
+
     public ItemStack build(Player player, ConfigurationSection section) {
         if (section == null) {
             return ItemStack.empty();
@@ -142,13 +150,5 @@ public final class ConfigItemBuilder {
             NamespacedKey modifierKey = new NamespacedKey(plugin, key.toLowerCase(Locale.ROOT).replace('.', '_').replace(':', '_'));
             meta.addAttributeModifier(attribute, new AttributeModifier(modifierKey, amount, operation, slot));
         }
-    }
-
-    private static NamespacedKey key(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        NamespacedKey parsed = NamespacedKey.fromString(raw.toLowerCase(Locale.ROOT));
-        return parsed == null ? NamespacedKey.minecraft(raw.toLowerCase(Locale.ROOT)) : parsed;
     }
 }

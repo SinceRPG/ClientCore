@@ -1,5 +1,6 @@
 package net.danh.clientcore.luck;
 
+import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.item.ConfigItemBuilder;
 import net.danh.clientcore.util.Text;
@@ -16,24 +17,22 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 public final class LuckItemService implements Listener {
-    private final Plugin plugin;
+    private final ConfigManager configManager;
     private final LuckService luck;
     private final ConfigItemBuilder itemBuilder;
     private final NamespacedKey amountKey;
 
-    public LuckItemService(Plugin plugin, LuckService luck, HookRegistry hooks) {
-        this.plugin = plugin;
+    public LuckItemService(Plugin plugin, ConfigManager configManager, LuckService luck, HookRegistry hooks) {
+        this.configManager = configManager;
         this.luck = luck;
         this.itemBuilder = new ConfigItemBuilder(plugin, hooks);
         this.amountKey = new NamespacedKey(plugin, "luck_item_amount");
     }
 
     public ItemStack build(Player viewer, int amount) {
-        ConfigurationSection section = plugin.getConfig().getConfigurationSection("luck.item");
+        ConfigurationSection section = configManager.getMain().getConfigurationSection("luck.item");
         ItemStack item = itemBuilder.build(viewer, section);
-        if (item.isEmpty()) {
-            return item;
-        }
+        if (item.isEmpty()) return item;
         item.editMeta(meta -> meta.getPersistentDataContainer().set(amountKey, PersistentDataType.INTEGER, Math.max(0, amount)));
         return item;
     }
@@ -44,17 +43,18 @@ public final class LuckItemService implements Listener {
             return;
         }
         ItemStack item = event.getItem();
-        if (item == null || !item.hasItemMeta()) {
-            return;
-        }
+        if (item == null || !item.hasItemMeta()) return;
+
         Integer amount = item.getItemMeta().getPersistentDataContainer().get(amountKey, PersistentDataType.INTEGER);
-        if (amount == null || amount <= 0) {
-            return;
-        }
+        if (amount == null || amount <= 0) return;
+
         event.setCancelled(true);
         Player player = event.getPlayer();
         luck.add(player.getUniqueId(), player.getName(), amount);
         item.subtract();
-        Text.send(player, plugin.getConfig().getString("messages.luck-item-used", "<green>You gained <white>%amount%</white> luck.").replace("%amount%", String.valueOf(amount)));
+
+        String msg = configManager.getMessages().getString("messages.luck-item-used", "<green>You gained <white>%amount%</white> luck.")
+                .replace("%amount%", String.valueOf(amount));
+        Text.send(player, msg);
     }
 }

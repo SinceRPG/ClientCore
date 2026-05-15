@@ -1,0 +1,8 @@
+# ==============================================================================
+# ClientCore Language & Messages Configuration
+# MiniMessage format is fully supported (e.g., <red>, <bold>, <gradient>)
+# ==============================================================================
+
+messages:
+  luck-item-used: "<green>You successfully consumed the token and gained <white>%amount%</white> luck."
+  chest-cooldown: "<red>This chest is currently empty. Check back later!"
