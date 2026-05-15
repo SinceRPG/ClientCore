@@ -12,6 +12,8 @@ block-regen:
   refresh-period-ticks: 40
   # The default WorldGuard flag name to check if breaking blocks is allowed here.
   default-worldguard-flag: clientcore-regen
+  # Configuration to replace hardcoded 5L join delay
+  join-delay-ticks: 5
 
   rules:
     level-1-bedrock:
@@ -19,8 +21,10 @@ block-regen:
       worlds: [ world ]
       # The blocks that should visually turn into something else.
       source-blocks: [ STONE, DEEPSLATE ]
-      # The block the player will visually see.
-      display-block: BEDROCK
+      # ORIGINAL means it will show the actual real block (Stone/Deepslate) before mining
+      ready-block: ORIGINAL
+      # The fake block sent to the client while the node is regenerating
+      cooldown-block: BEDROCK
       # Legacy single placeholder condition
       condition: "%mmocore_level% <= 1"
       conditions: [ ]
@@ -31,6 +35,8 @@ block-regen:
         enabled: true
         frames: 12
         block-display: true
+        # Configuration to replace hardcoded 32.0F view range
+        view-range: 32.0
       # Items that the player will physically receive into their inventory when mining this fake block.
       drops:
         - type: vanilla

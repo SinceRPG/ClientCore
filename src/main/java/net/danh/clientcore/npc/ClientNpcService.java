@@ -130,7 +130,14 @@ public final class ClientNpcService implements Listener {
         return new ClientNpc() {
             @Override
             public void remove(Player p) {
-                finalEntity.getScheduler().execute(plugin, finalEntity::remove, null, 1L);
+                if (plugin.isEnabled()) {
+                    finalEntity.getScheduler().execute(plugin, finalEntity::remove, null, 1L);
+                } else {
+                    try {
+                        finalEntity.remove();
+                    } catch (Exception ignored) {
+                    }
+                }
             }
 
             @Override

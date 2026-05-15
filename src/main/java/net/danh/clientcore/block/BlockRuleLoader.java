@@ -1,6 +1,5 @@
 package net.danh.clientcore.block;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Registry;
 import org.bukkit.configuration.ConfigurationSection;
@@ -40,10 +39,10 @@ final class BlockRuleLoader {
                     sourceBlocks.add(material);
                 }
             }
-            Material display = Material.matchMaterial(section.getString("display-block", "STONE"));
-            if (display == null || !blockNames.contains(display.name())) {
-                display = Material.STONE;
-            }
+
+            String readyBlock = section.getString("ready-block", "ORIGINAL").toUpperCase(Locale.ROOT);
+            String cooldownBlock = section.getString("cooldown-block", "AIR").toUpperCase(Locale.ROOT);
+
             List<ConfigurationSection> drops = new ArrayList<>();
             for (var value : section.getMapList("drops")) {
                 ConfigurationSection drop = section.createSection("__drop_" + drops.size(), value);
@@ -52,10 +51,10 @@ final class BlockRuleLoader {
             List<BlockVariant> variants = new ArrayList<>();
             for (var value : section.getMapList("variants")) {
                 ConfigurationSection variant = section.createSection("__variant_" + variants.size(), value);
-                Material variantDisplay = Material.matchMaterial(variant.getString("display-block", display.name()));
-                if (variantDisplay == null || !blockNames.contains(variantDisplay.name())) {
-                    variantDisplay = display;
-                }
+
+                String variantReady = variant.getString("ready-block", readyBlock).toUpperCase(Locale.ROOT);
+                String variantCooldown = variant.getString("cooldown-block", cooldownBlock).toUpperCase(Locale.ROOT);
+
                 List<ConfigurationSection> variantDrops = new ArrayList<>();
                 for (var dropValue : variant.getMapList("drops")) {
                     ConfigurationSection drop = variant.createSection("__drop_" + variantDrops.size(), dropValue);
@@ -66,7 +65,8 @@ final class BlockRuleLoader {
                 }
                 variants.add(new BlockVariant(
                         variant.getString("id", "variant_" + variants.size()),
-                        Bukkit.createBlockData(variantDisplay),
+                        variantReady,
+                        variantCooldown,
                         Math.max(0.0D, variant.getDouble("weight", 1.0D)),
                         variant.getBoolean("rare", false),
                         Math.max(0.0D, variant.getDouble("luck-multiplier", 1.0D)),
@@ -78,7 +78,8 @@ final class BlockRuleLoader {
             if (variants.isEmpty()) {
                 variants.add(new BlockVariant(
                         "default",
-                        Bukkit.createBlockData(display),
+                        readyBlock,
+                        cooldownBlock,
                         Math.max(0.0D, section.getDouble("weight", 1.0D)),
                         section.getBoolean("rare", false),
                         Math.max(0.0D, section.getDouble("luck-multiplier", 1.0D)),
@@ -97,6 +98,7 @@ final class BlockRuleLoader {
                     section.getString("worldguard-flag", defaultFlag),
                     section.getBoolean("grow-animation.enabled", true),
                     Math.max(1, section.getInt("grow-animation.frames", 12)),
+                    (float) section.getDouble("grow-animation.view-range", 32.0),
                     variants
             ));
         }

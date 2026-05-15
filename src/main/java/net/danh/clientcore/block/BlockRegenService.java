@@ -10,6 +10,7 @@ import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
@@ -49,6 +50,7 @@ public final class BlockRegenService implements Listener {
     private boolean enabled;
     private int refreshRadius;
     private ScheduledTask refreshTask;
+    private long joinDelayTicks;
 
     public BlockRegenService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, LuckService luck) {
         this.plugin = plugin;
@@ -71,6 +73,7 @@ public final class BlockRegenService implements Listener {
     public void reload() {
         this.enabled = configManager.getBlocks().getBoolean("block-regen.enabled", true);
         this.refreshRadius = Math.max(1, configManager.getBlocks().getInt("block-regen.refresh-radius", 10));
+        this.joinDelayTicks = Math.max(1L, configManager.getBlocks().getLong("block-regen.join-delay-ticks", 5L));
         this.rules = new BlockRuleLoader(plugin, configManager.getBlocks()).load();
         if (refreshTask != null) {
             refreshTask.cancel();
@@ -93,7 +96,14 @@ public final class BlockRegenService implements Listener {
         regenerating.clear();
         visibleBlocks.clear();
         for (BlockDisplay display : activeDisplays) {
-            display.getScheduler().execute(plugin, display::remove, null, 1L);
+            if (plugin.isEnabled()) {
+                display.getScheduler().execute(plugin, display::remove, null, 1L);
+            } else {
+                try {
+                    display.remove();
+                } catch (Exception ignored) {
+                }
+            }
         }
         activeDisplays.clear();
         if (refreshTask != null) {
@@ -123,17 +133,44 @@ public final class BlockRegenService implements Listener {
         event.setCancelled(true);
         event.setDropItems(false);
         event.setExpToDrop(0);
-        packets.sendAir(player, block.getLocation());
+        BlockData cooldownData;
+        if ("ORIGINAL".equalsIgnoreCase(variant.cooldownBlock())) {
+            cooldownData = block.getBlockData();
+        } else {
+            Material mat = Material.matchMaterial(variant.cooldownBlock());
+            cooldownData = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
+        }
+        packets.sendBlock(player, block.getLocation(), cooldownData);
+        visibleBlocks.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>()).put(pos, cooldownData);
+
         giveDrops(player, variant.drops());
 
         Location location = block.getLocation();
         if (rule.animation()) {
-            animate(player, location, variant.displayBlock(), rule.frames(), variant.regenTicks());
+            BlockData readyData;
+            if ("ORIGINAL".equalsIgnoreCase(variant.readyBlock())) {
+                readyData = block.getBlockData();
+            } else {
+                Material mat = Material.matchMaterial(variant.readyBlock());
+                readyData = mat != null ? Bukkit.createBlockData(mat) : block.getBlockData();
+            }
+            animate(player, location, readyData, rule.frames(), variant.regenTicks(), rule.viewRange());
         }
+
         scheduler.regionLater(location, variant.regenTicks(), task -> {
             if (player.isOnline()) {
-                packets.sendBlock(player, location, variant.displayBlock());
-                visibleBlocks.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>()).put(pos, variant.displayBlock());
+                BlockData finalData;
+                if ("ORIGINAL".equalsIgnoreCase(variant.readyBlock())) {
+                    finalData = block.getBlockData();
+                    packets.sendBlock(player, location, finalData);
+                    Map<BlockPos, BlockData> visible = visibleBlocks.get(player.getUniqueId());
+                    if (visible != null) visible.remove(pos);
+                } else {
+                    Material mat = Material.matchMaterial(variant.readyBlock());
+                    finalData = mat != null ? Bukkit.createBlockData(mat) : block.getBlockData();
+                    packets.sendBlock(player, location, finalData);
+                    visibleBlocks.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>()).put(pos, finalData);
+                }
             }
             active.remove(pos);
         });
@@ -149,7 +186,7 @@ public final class BlockRegenService implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        scheduler.regionLater(event.getPlayer().getLocation(), 5L, task -> refreshAround(event.getPlayer()));
+        scheduler.regionLater(event.getPlayer().getLocation(), joinDelayTicks, task -> refreshAround(event.getPlayer()));
     }
 
     @EventHandler
@@ -180,16 +217,28 @@ public final class BlockRegenService implements Listener {
         int baseX = center.getBlockX();
         int baseY = center.getBlockY();
         int baseZ = center.getBlockZ();
+        Set<BlockPos> activeRegen = regenerating.getOrDefault(player.getUniqueId(), Set.of());
+
         for (int x = baseX - refreshRadius; x <= baseX + refreshRadius; x++) {
             for (int y = Math.max(world.getMinHeight(), baseY - refreshRadius); y <= Math.min(world.getMaxHeight() - 1, baseY + refreshRadius); y++) {
                 for (int z = baseZ - refreshRadius; z <= baseZ + refreshRadius; z++) {
                     Block block = world.getBlockAt(x, y, z);
-                    ruleFor(player, block).ifPresent(match -> desired.put(BlockPos.of(block), match.variant().displayBlock()));
+                    ruleFor(player, block).ifPresent(match -> {
+                        BlockPos pos = BlockPos.of(block);
+                        boolean isRegenerating = activeRegen.contains(pos);
+                        String blockMaterial = isRegenerating ? match.variant().cooldownBlock() : match.variant().readyBlock();
+
+                        if (!"ORIGINAL".equalsIgnoreCase(blockMaterial)) {
+                            Material mat = Material.matchMaterial(blockMaterial);
+                            if (mat != null) {
+                                desired.put(pos, Bukkit.createBlockData(mat));
+                            }
+                        }
+                    });
                 }
             }
         }
         Map<BlockPos, BlockData> visible = visibleBlocks.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>());
-        Set<BlockPos> activeRegen = regenerating.getOrDefault(player.getUniqueId(), Set.of());
         Set<BlockPos> restore = new HashSet<>(visible.keySet());
         restore.removeAll(desired.keySet());
         restore.removeAll(activeRegen);
@@ -290,14 +339,14 @@ public final class BlockRegenService implements Listener {
         if (!items.isEmpty()) player.give(items);
     }
 
-    private void animate(Player viewer, Location blockLocation, BlockData blockData, int frames, int totalTicks) {
+    private void animate(Player viewer, Location blockLocation, BlockData blockData, int frames, int totalTicks, float viewRange) {
         Location spawnLocation = blockLocation.clone().add(0.5D, 0.5D, 0.5D);
         World world = spawnLocation.getWorld();
         if (world == null) return;
         BlockDisplay display = (BlockDisplay) world.spawnEntity(spawnLocation, EntityType.BLOCK_DISPLAY);
         activeDisplays.add(display);
         display.setBlock(blockData);
-        display.setViewRange(32.0F);
+        display.setViewRange(viewRange);
         display.setVisibleByDefault(false);
         viewer.showEntity(plugin, display);
         int period = Math.max(1, totalTicks / frames);

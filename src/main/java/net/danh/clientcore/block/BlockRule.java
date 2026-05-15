@@ -15,6 +15,7 @@ record BlockRule(
         String worldGuardFlag,
         boolean animation,
         int frames,
+        float viewRange,
         List<BlockVariant> variants
 ) {
 }

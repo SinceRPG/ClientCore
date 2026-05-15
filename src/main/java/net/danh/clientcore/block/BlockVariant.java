@@ -1,6 +1,5 @@
 package net.danh.clientcore.block;
 
-import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.List;
@@ -8,7 +7,8 @@ import java.util.Set;
 
 record BlockVariant(
         String id,
-        BlockData displayBlock,
+        String readyBlock,
+        String cooldownBlock,
         double weight,
         boolean rare,
         double luckMultiplier,

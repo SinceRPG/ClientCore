@@ -6,6 +6,7 @@ import de.oliver.fancynpcs.api.NpcData;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.npc.ClientNpc;
 import net.danh.clientcore.util.Text;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -22,12 +23,45 @@ public final class FancyNpcsHook {
             data.setDisplayName(name);
             Npc npc = FancyNpcsPlugin.get().getNpcAdapter().apply(data);
             npc.create();
-            npc.spawn(viewer);
+
+            Runnable spawnTask = () -> {
+                ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+                try {
+                    Thread.currentThread().setContextClassLoader(FancyNpcsPlugin.class.getClassLoader());
+                    npc.spawn(viewer);
+                } catch (Exception e) {
+                    Text.warn(plugin, configManager, "console.hook-failed", "{plugin}", "FancyNpcs", "{error}", e.getMessage());
+                } finally {
+                    Thread.currentThread().setContextClassLoader(originalClassLoader);
+                }
+            };
+
+            if (plugin.isEnabled()) {
+                Bukkit.getAsyncScheduler().runNow(plugin, task -> spawnTask.run());
+            } else {
+                spawnTask.run();
+            }
+
             return new ClientNpc() {
                 @Override
                 public void remove(Player p) {
-                    npc.remove(p);
-                    FancyNpcsPlugin.get().getNpcManager().removeNpc(npc);
+                    Runnable removeTask = () -> {
+                        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+                        try {
+                            Thread.currentThread().setContextClassLoader(FancyNpcsPlugin.class.getClassLoader());
+                            npc.remove(p);
+                            FancyNpcsPlugin.get().getNpcManager().removeNpc(npc);
+                        } finally {
+                            Thread.currentThread().setContextClassLoader(originalClassLoader);
+                        }
+                    };
+
+                    // Safe fallback during server shutdown
+                    if (plugin.isEnabled()) {
+                        Bukkit.getAsyncScheduler().runNow(plugin, task -> removeTask.run());
+                    } else {
+                        removeTask.run();
+                    }
                 }
 
                 @Override

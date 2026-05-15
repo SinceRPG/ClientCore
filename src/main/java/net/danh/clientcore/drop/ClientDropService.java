@@ -70,7 +70,14 @@ public final class ClientDropService implements Listener {
         if (refreshTask != null) refreshTask.cancel();
         for (Map<String, Entity> playerDrops : activeDrops.values()) {
             for (Entity entity : playerDrops.values()) {
-                entity.getScheduler().execute(plugin, entity::remove, null, 1L);
+                if (plugin.isEnabled()) {
+                    entity.getScheduler().execute(plugin, entity::remove, null, 1L);
+                } else {
+                    try {
+                        entity.remove();
+                    } catch (Exception ignored) {
+                    }
+                }
             }
         }
         activeDrops.clear();

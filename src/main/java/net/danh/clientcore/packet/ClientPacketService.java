@@ -29,13 +29,6 @@ public final class ClientPacketService {
         ));
     }
 
-    public void sendAir(Player player, Location location) {
-        send(player, new WrapperPlayServerBlockChange(
-                new Vector3i(location.getBlockX(), location.getBlockY(), location.getBlockZ()),
-                WrappedBlockState.getByString("minecraft:air")
-        ));
-    }
-
     public void destroyEntity(Player player, int entityId) {
         send(player, new WrapperPlayServerDestroyEntities(entityId));
     }

@@ -76,7 +76,14 @@ public final class ClientMobService implements Listener {
         for (UUID uuid : owners.keySet()) {
             Entity entity = clientEntities.get(uuid);
             if (entity != null) {
-                entity.getScheduler().execute(plugin, entity::remove, null, 1L);
+                if (plugin.isEnabled()) {
+                    entity.getScheduler().execute(plugin, entity::remove, null, 1L);
+                } else {
+                    try {
+                        entity.remove();
+                    } catch (Exception ignored) {
+                    }
+                }
             }
         }
         owners.clear();
@@ -221,7 +228,7 @@ public final class ClientMobService implements Listener {
     private void applyStats(LivingEntity entity, MobVariant variant) {
         AttributeInstance maxHealth = entity.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealth != null) maxHealth.setBaseValue(variant.health());
-        entity.setHealth(Math.min(variant.health(), entity.getMaxHealth()));
+        if (maxHealth != null) entity.setHealth(Math.min(variant.health(), maxHealth.getValue()));
         AttributeInstance attack = entity.getAttribute(Attribute.ATTACK_DAMAGE);
         if (attack != null) attack.setBaseValue(variant.damage());
     }
