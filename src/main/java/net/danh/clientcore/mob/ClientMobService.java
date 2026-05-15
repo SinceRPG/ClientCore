@@ -14,11 +14,13 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.entity.*;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -214,13 +216,6 @@ public final class ClientMobService implements Listener {
     }
 
     @EventHandler
-    public void onDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Damageable damageable && ownerOf(event.getEntity()) != null && damageable.isDead()) {
-            forget(event.getEntity().getUniqueId());
-        }
-    }
-
-    @EventHandler
     public void onDeath(EntityDeathEvent event) {
         if (ownerOf(event.getEntity()) != null) forget(event.getEntity().getUniqueId());
     }
@@ -267,6 +262,13 @@ public final class ClientMobService implements Listener {
 
     private void tickSpawns() {
         if (!enabled) return;
+        for (UUID entityId : owners.keySet()) {
+            Entity entity = clientEntities.get(entityId);
+            if (entity == null || !entity.isValid() || Bukkit.getEntity(entityId) == null) {
+                forget(entityId);
+            }
+        }
+
         long tick = spawnTick.incrementAndGet() * 20L;
         for (SpawnPoint point : spawns.all()) {
             if (!point.enabled() || tick % point.intervalTicks() != 0) continue;
