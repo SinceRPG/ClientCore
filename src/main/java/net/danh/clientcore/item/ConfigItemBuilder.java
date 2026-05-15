@@ -1,5 +1,8 @@
 package net.danh.clientcore.item;
 
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
+import io.papermc.paper.registry.keys.tags.DamageTypeTagKeys;
 import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.util.Text;
 import org.bukkit.Material;
@@ -14,6 +17,7 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemRarity;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
@@ -35,6 +39,23 @@ public final class ConfigItemBuilder {
         }
         NamespacedKey parsed = NamespacedKey.fromString(raw.toLowerCase(Locale.ROOT));
         return parsed == null ? NamespacedKey.minecraft(raw.toLowerCase(Locale.ROOT)) : parsed;
+    }
+
+    private static EquipmentSlotGroup getSlotGroup(String name) {
+        if (name == null || name.isBlank()) {
+            return EquipmentSlotGroup.ANY;
+        }
+        return switch (name.toUpperCase(Locale.ROOT)) {
+            case "MAINHAND" -> EquipmentSlotGroup.MAINHAND;
+            case "OFFHAND" -> EquipmentSlotGroup.OFFHAND;
+            case "HAND" -> EquipmentSlotGroup.HAND;
+            case "FEET" -> EquipmentSlotGroup.FEET;
+            case "LEGS" -> EquipmentSlotGroup.LEGS;
+            case "CHEST" -> EquipmentSlotGroup.CHEST;
+            case "HEAD" -> EquipmentSlotGroup.HEAD;
+            case "ARMOR" -> EquipmentSlotGroup.ARMOR;
+            default -> EquipmentSlotGroup.ANY;
+        };
     }
 
     public ItemStack build(Player player, ConfigurationSection section) {
@@ -63,7 +84,9 @@ public final class ConfigItemBuilder {
             if (section.contains("custom-model-data")) {
                 int value = section.getInt("custom-model-data");
                 if (value > 0) {
-                    meta.setCustomModelData(value);
+                    CustomModelDataComponent cmdComponent = meta.getCustomModelDataComponent();
+                    cmdComponent.setFloats(List.of((float) value));
+                    meta.setCustomModelDataComponent(cmdComponent);
                 }
             }
             if (section.contains("item-model")) {
@@ -82,10 +105,14 @@ public final class ConfigItemBuilder {
                 meta.setGlider(section.getBoolean("glider", false));
             }
             if (section.contains("fire-resistant")) {
-                meta.setFireResistant(section.getBoolean("fire-resistant", false));
+                if (section.getBoolean("fire-resistant", false)) {
+                    meta.setDamageResistantTypes(RegistryAccess.registryAccess().getRegistry(RegistryKey.DAMAGE_TYPE).getTag(DamageTypeTagKeys.IS_FIRE));
+                } else {
+                    meta.setDamageResistantTypes(null);
+                }
             }
             if (section.contains("max-stack-size")) {
-                meta.setMaxStackSize(Math.max(1, Math.min(99, section.getInt("max-stack-size"))));
+                meta.setMaxStackSize(Math.clamp(section.getInt("max-stack-size"), 1, 99));
             }
             if (section.contains("rarity")) {
                 try {
@@ -107,10 +134,10 @@ public final class ConfigItemBuilder {
             }
             ConfigurationSection enchants = section.getConfigurationSection("enchants");
             if (enchants != null) {
-                for (String key : enchants.getKeys(false)) {
-                    Enchantment enchantment = Enchantment.getByKey(NamespacedKey.minecraft(key.toLowerCase(Locale.ROOT)));
+                for (String enchantKey : enchants.getKeys(false)) {
+                    Enchantment enchantment = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(key(enchantKey));
                     if (enchantment != null) {
-                        meta.addEnchant(enchantment, enchants.getInt(key, 1), true);
+                        meta.addEnchant(enchantment, enchants.getInt(enchantKey, 1), true);
                     }
                 }
             }
@@ -135,19 +162,16 @@ public final class ConfigItemBuilder {
     }
 
     private void addAttributes(ItemMeta meta, ConfigurationSection attributes) {
-        for (String key : attributes.getKeys(false)) {
-            Attribute attribute = RegistryAccess.attribute(key);
-            ConfigurationSection section = attributes.getConfigurationSection(key);
+        for (String attrKey : attributes.getKeys(false)) {
+            Attribute attribute = RegistryAccess.registryAccess().getRegistry(RegistryKey.ATTRIBUTE).get(key(attrKey));
+            ConfigurationSection section = attributes.getConfigurationSection(attrKey);
             if (attribute == null || section == null) {
                 continue;
             }
             double amount = section.getDouble("amount", 0.0D);
             AttributeModifier.Operation operation = AttributeModifier.Operation.valueOf(section.getString("operation", "ADD_NUMBER").toUpperCase(Locale.ROOT));
-            EquipmentSlotGroup slot = EquipmentSlotGroup.getByName(section.getString("slot", "ANY").toLowerCase(Locale.ROOT));
-            if (slot == null) {
-                slot = EquipmentSlotGroup.ANY;
-            }
-            NamespacedKey modifierKey = new NamespacedKey(plugin, key.toLowerCase(Locale.ROOT).replace('.', '_').replace(':', '_'));
+            EquipmentSlotGroup slot = getSlotGroup(section.getString("slot", "ANY"));
+            NamespacedKey modifierKey = new NamespacedKey(plugin, attrKey.toLowerCase(Locale.ROOT).replace('.', '_').replace(':', '_'));
             meta.addAttributeModifier(attribute, new AttributeModifier(modifierKey, amount, operation, slot));
         }
     }

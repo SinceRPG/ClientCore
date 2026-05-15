@@ -1,7 +1,8 @@
 package net.danh.clientcore.mob;
 
+import net.danh.clientcore.config.ConfigManager;
+import net.danh.clientcore.util.Text;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.plugin.Plugin;
 
@@ -12,16 +13,16 @@ import java.util.List;
 
 final class MobRuleLoader {
     private final Plugin plugin;
-    private final YamlConfiguration config;
+    private final ConfigManager configManager;
 
-    MobRuleLoader(Plugin plugin, YamlConfiguration config) {
+    MobRuleLoader(Plugin plugin, ConfigManager configManager) {
         this.plugin = plugin;
-        this.config = config;
+        this.configManager = configManager;
     }
 
     List<MobRule> load() {
         List<MobRule> rules = new ArrayList<>();
-        ConfigurationSection root = config.getConfigurationSection("client-mobs.rules");
+        ConfigurationSection root = configManager.getMobs().getConfigurationSection("client-mobs.rules");
         if (root == null) return rules;
 
         for (String id : root.getKeys(false)) {
@@ -32,7 +33,7 @@ final class MobRuleLoader {
             try {
                 fallback = EntityType.valueOf(section.getString("fallback-entity", "ZOMBIE").toUpperCase());
             } catch (IllegalArgumentException ignored) {
-                plugin.getLogger().warning("Unknown fallback entity for client mob rule " + id);
+                Text.warn(plugin, configManager, "console.invalid-entity", "{rule}", id, "{type}", section.getString("fallback-entity"));
             }
 
             List<MobVariant> variants = new ArrayList<>();
@@ -42,7 +43,7 @@ final class MobRuleLoader {
                 try {
                     variantFallback = EntityType.valueOf(variant.getString("fallback-entity", fallback.name()).toUpperCase());
                 } catch (IllegalArgumentException ignored) {
-                    plugin.getLogger().warning("Unknown fallback entity for client mob rule variant " + id + ":" + variants.size());
+                    Text.warn(plugin, configManager, "console.invalid-entity", "{rule}", id + ":" + variants.size(), "{type}", variant.getString("fallback-entity"));
                 }
                 variants.add(new MobVariant(
                         variant.getString("id", "variant_" + variants.size()),

@@ -31,7 +31,7 @@ public final class ClientCoreCommands {
     private ClientCoreCommands() {
     }
 
-    public static void register(ClientCore plugin, ConfigManager configManager, BlockRegenService blockService, ClientMobService mobService, VisibilityService visibility, LuckService luck, LuckItemService luckItems) {
+    public static void register(ClientCore plugin, ConfigManager config, BlockRegenService blockService, ClientMobService mobService, VisibilityService visibility, LuckService luck, LuckItemService luckItems) {
         plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, (ReloadableRegistrarEvent<Commands> event) -> {
 
             LiteralArgumentBuilder<CommandSourceStack> rootBuilder = Commands.literal("clientcore");
@@ -40,7 +40,7 @@ public final class ClientCoreCommands {
                     .requires(source -> source.getSender().hasPermission("clientcore.admin"))
                     .executes(context -> {
                         plugin.reloadPlugin();
-                        Text.send(context.getSource().getSender(), "<green>ClientCore reloaded.");
+                        Text.sendConfig(context.getSource().getSender(), config, "commands.reloaded");
                         return 1;
                     }));
 
@@ -48,7 +48,7 @@ public final class ClientCoreCommands {
                     .requires(source -> source.getSender().hasPermission("clientcore.admin"))
                     .executes(context -> {
                         CommandSender sender = context.getSource().getSender();
-                        Text.send(sender, "<aqua>ClientCore</aqua> <gray>blocks=" + blockService.ruleCount() + " mobs=" + mobService.ruleCount() + "</gray>");
+                        Text.sendConfig(sender, config, "commands.status", "{blocks}", String.valueOf(blockService.ruleCount()), "{mobs}", String.valueOf(mobService.ruleCount()));
                         return 1;
                     }));
 
@@ -56,11 +56,11 @@ public final class ClientCoreCommands {
                     .requires(source -> source.getSender().hasPermission("clientcore.admin"))
                     .executes(context -> {
                         if (!(context.getSource().getSender() instanceof Player player)) {
-                            Text.send(context.getSource().getSender(), "<red>Only players can refresh client blocks.");
+                            Text.sendConfig(context.getSource().getSender(), config, "commands.only-players");
                             return 0;
                         }
                         blockService.refreshAround(player);
-                        Text.send(player, "<green>Refreshed client-side blocks around you.");
+                        Text.sendConfig(player, config, "commands.blocks-refreshed");
                         return 1;
                     }));
 
@@ -75,7 +75,7 @@ public final class ClientCoreCommands {
                             })
                             .executes(context -> {
                                 if (!(context.getSource().getSender() instanceof Player player)) {
-                                    Text.send(context.getSource().getSender(), "<red>Only players can use visibility.");
+                                    Text.sendConfig(context.getSource().getSender(), config, "commands.only-players");
                                     return 0;
                                 }
                                 String mode = StringArgumentType.getString(context, "mode");
@@ -89,7 +89,8 @@ public final class ClientCoreCommands {
                                 } else {
                                     hidden = visibility.toggle(player);
                                 }
-                                Text.send(player, hidden ? "<green>You are now hidden from other players." : "<green>You are now visible to other players.");
+                                String path = hidden ? "commands.visibility-hidden" : "commands.visibility-visible";
+                                Text.sendConfig(player, config, path);
                                 return 1;
                             })));
 
@@ -98,7 +99,7 @@ public final class ClientCoreCommands {
                     .then(Commands.argument("amount", IntegerArgumentType.integer(1, 50))
                             .executes(context -> {
                                 if (!(context.getSource().getSender() instanceof Player player)) {
-                                    Text.send(context.getSource().getSender(), "<red>Only players can spawn client mobs.");
+                                    Text.sendConfig(context.getSource().getSender(), config, "commands.only-players");
                                     return 0;
                                 }
                                 int amount = IntegerArgumentType.getInteger(context, "amount");
@@ -106,7 +107,7 @@ public final class ClientCoreCommands {
                                     Location location = player.getLocation().add(player.getLocation().getDirection().normalize().multiply(3 + i));
                                     plugin.scheduler().region(location, () -> mobService.spawnFor(player, location));
                                 }
-                                Text.send(player, "<green>Spawned " + amount + " client mob(s).");
+                                Text.sendConfig(player, config, "commands.mob-spawned", "{amount}", String.valueOf(amount));
                                 return amount;
                             })));
 
@@ -115,12 +116,12 @@ public final class ClientCoreCommands {
                     .then(Commands.argument("id", StringArgumentType.word())
                             .executes(context -> {
                                 if (!(context.getSource().getSender() instanceof Player player)) {
-                                    Text.send(context.getSource().getSender(), "<red>Only players can set mob spawns.");
+                                    Text.sendConfig(context.getSource().getSender(), config, "commands.only-players");
                                     return 0;
                                 }
                                 String id = StringArgumentType.getString(context, "id");
-                                SpawnPoint point = mobService.setSpawn(id, player.getLocation());
-                                Text.send(player, "<green>Set spawn <white>" + point.id() + "</white> at your location.");
+                                mobService.setSpawn(id, player.getLocation());
+                                Text.sendConfig(player, config, "commands.spawn-set", "{id}", id);
                                 return 1;
                             })));
 
@@ -136,7 +137,8 @@ public final class ClientCoreCommands {
                             .executes(context -> {
                                 String id = StringArgumentType.getString(context, "id");
                                 boolean removed = mobService.deleteSpawn(id);
-                                Text.send(context.getSource().getSender(), removed ? "<green>Deleted spawn " + id + "." : "<red>Spawn not found: " + id);
+                                String path = removed ? "commands.spawn-deleted" : "commands.spawn-not-found";
+                                Text.sendConfig(context.getSource().getSender(), config, path, "{id}", id);
                                 return removed ? 1 : 0;
                             })));
 
@@ -145,13 +147,13 @@ public final class ClientCoreCommands {
                     .executes(context -> {
                         CommandSender sender = context.getSource().getSender();
                         if (mobService.spawnList().isEmpty()) {
-                            Text.send(sender, "<yellow>No client mob spawns configured.");
+                            Text.sendConfig(sender, config, "commands.spawn-none");
                             return 1;
                         }
                         for (SpawnPoint point : mobService.spawnList()) {
-                            Text.send(sender, "<aqua>" + point.id() + "</aqua> <gray>rule=" + blank(point.rule()) + " amount=" + point.amount()
-                                    + " batch=" + point.batchSize() + " radius=" + point.radius() + " interval=" + point.intervalTicks()
-                                    + " maxAlive=" + point.maxAlive() + " enabled=" + point.enabled() + "</gray>");
+                            Text.sendConfig(sender, config, "commands.spawn-list-item",
+                                    "{id}", point.id(), "{rule}", blank(point.rule()),
+                                    "{amount}", String.valueOf(point.amount()), "{radius}", String.valueOf(point.radius()));
                         }
                         return mobService.spawnList().size();
                     }));
@@ -191,16 +193,17 @@ public final class ClientCoreCommands {
                                                 String value = StringArgumentType.getString(context, "value");
                                                 SpawnPoint point = mobService.spawn(id).orElse(null);
                                                 if (point == null) {
-                                                    Text.send(context.getSource().getSender(), "<red>Spawn not found: " + id);
+                                                    Text.sendConfig(context.getSource().getSender(), config, "commands.spawn-not-found", "{id}", id);
                                                     return 0;
                                                 }
                                                 try {
                                                     point.set(attribute, value);
                                                     mobService.saveSpawns();
-                                                    Text.send(context.getSource().getSender(), "<green>Updated " + id + " " + attribute + "=" + value + ".");
+                                                    Text.sendConfig(context.getSource().getSender(), config, "commands.spawn-updated",
+                                                            "{id}", id, "{attribute}", attribute, "{value}", value);
                                                     return 1;
                                                 } catch (IllegalArgumentException ex) {
-                                                    Text.send(context.getSource().getSender(), "<red>" + ex.getMessage());
+                                                    Text.sendConfig(context.getSource().getSender(), config, "commands.spawn-invalid-attribute");
                                                     return 0;
                                                 }
                                             })))));
@@ -217,121 +220,126 @@ public final class ClientCoreCommands {
                             .executes(context -> {
                                 String key = StringArgumentType.getString(context, "key");
                                 boolean enabled = key.equalsIgnoreCase("on") || key.equalsIgnoreCase("true");
-                                configManager.getMain().set("settings.debug", enabled);
-                                configManager.saveAll();
-                                Text.send(context.getSource().getSender(), "<green>Debug set to " + enabled + ".");
+                                config.getMain().set("settings.debug", enabled);
+                                config.saveAll();
+                                Text.sendConfig(context.getSource().getSender(), config, "commands.debug-set", "{state}", String.valueOf(enabled));
                                 return 1;
                             })));
 
-            rootBuilder.then(Commands.literal("luck")
-                    .then(Commands.literal("profile")
-                            .requires(source -> source.getSender().hasPermission("clientcore.luck"))
-                            .executes(context -> {
-                                if (!(context.getSource().getSender() instanceof Player player)) {
-                                    Text.send(context.getSource().getSender(), "<red>Console must specify a player with admin luck commands.");
-                                    return 0;
-                                }
-                                PlayerStats stats = luck.snapshot(player);
-                                Text.send(player, "<aqua>Luck</aqua><gray>: <white>" + stats.luck() + "</white></gray>");
-                                return 1;
-                            }))
-                    .then(Commands.literal("top")
-                            .requires(source -> source.getSender().hasPermission("clientcore.luck"))
-                            .executes(context -> {
-                                sendLuckTop(plugin, context.getSource().getSender(), luck, 10);
-                                return 1;
-                            }))
-                    .then(Commands.literal("t")
-                            .requires(source -> source.getSender().hasPermission("clientcore.luck"))
-                            .executes(context -> {
-                                sendLuckTop(plugin, context.getSource().getSender(), luck, 10);
-                                return 1;
-                            }))
-                    .then(Commands.literal("set")
-                            .requires(source -> source.getSender().hasPermission("clientcore.admin"))
-                            .then(Commands.argument("player", StringArgumentType.word())
-                                    .suggests((context, builder) -> suggestPlayers(builder))
-                                    .then(Commands.argument("amount", IntegerArgumentType.integer(0))
-                                            .executes(context -> {
-                                                PlayerTarget target = target(StringArgumentType.getString(context, "player"));
-                                                PlayerStats stats = luck.set(target.uuid(), target.name(), IntegerArgumentType.getInteger(context, "amount"));
-                                                Text.send(context.getSource().getSender(), "<green>Set " + stats.name() + " luck to " + stats.luck() + ".");
-                                                return 1;
-                                            }))))
-                    .then(Commands.literal("add")
-                            .requires(source -> source.getSender().hasPermission("clientcore.admin"))
-                            .then(Commands.argument("player", StringArgumentType.word())
-                                    .suggests((context, builder) -> suggestPlayers(builder))
-                                    .then(Commands.argument("amount", IntegerArgumentType.integer())
-                                            .executes(context -> {
-                                                PlayerTarget target = target(StringArgumentType.getString(context, "player"));
-                                                PlayerStats stats = luck.add(target.uuid(), target.name(), IntegerArgumentType.getInteger(context, "amount"));
-                                                Text.send(context.getSource().getSender(), "<green>Added luck. " + stats.name() + " now has " + stats.luck() + ".");
-                                                return 1;
-                                            }))))
-                    .then(Commands.literal("remove")
-                            .requires(source -> source.getSender().hasPermission("clientcore.admin"))
-                            .then(Commands.argument("player", StringArgumentType.word())
-                                    .suggests((context, builder) -> suggestPlayers(builder))
-                                    .then(Commands.argument("amount", IntegerArgumentType.integer(0))
-                                            .executes(context -> {
-                                                PlayerTarget target = target(StringArgumentType.getString(context, "player"));
-                                                PlayerStats stats = luck.add(target.uuid(), target.name(), -IntegerArgumentType.getInteger(context, "amount"));
-                                                Text.send(context.getSource().getSender(), "<green>Removed luck. " + stats.name() + " now has " + stats.luck() + ".");
-                                                return 1;
-                                            }))))
-                    .then(Commands.literal("reset")
-                            .requires(source -> source.getSender().hasPermission("clientcore.admin"))
-                            .then(Commands.argument("player", StringArgumentType.word())
-                                    .suggests((context, builder) -> suggestPlayers(builder))
+            LiteralArgumentBuilder<CommandSourceStack> luckCmd = Commands.literal("luck");
+
+            luckCmd.then(Commands.literal("profile")
+                    .requires(source -> source.getSender().hasPermission("clientcore.luck"))
+                    .executes(context -> {
+                        if (!(context.getSource().getSender() instanceof Player player)) {
+                            Text.sendConfig(context.getSource().getSender(), config, "commands.only-players");
+                            return 0;
+                        }
+                        PlayerStats stats = luck.snapshot(player);
+                        Text.sendConfig(player, config, "commands.luck-profile", "{luck}", String.valueOf(stats.luck()));
+                        return 1;
+                    }));
+
+            luckCmd.then(Commands.literal("top")
+                    .requires(source -> source.getSender().hasPermission("clientcore.luck"))
+                    .executes(context -> {
+                        sendLuckTop(plugin, config, context.getSource().getSender(), luck, 10);
+                        return 1;
+                    }));
+
+            luckCmd.then(Commands.literal("set")
+                    .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                    .then(Commands.argument("player", StringArgumentType.word())
+                            .suggests((context, builder) -> suggestPlayers(builder))
+                            .then(Commands.argument("amount", IntegerArgumentType.integer(0))
                                     .executes(context -> {
                                         PlayerTarget target = target(StringArgumentType.getString(context, "player"));
-                                        PlayerStats stats = luck.set(target.uuid(), target.name(), 0.0D);
-                                        Text.send(context.getSource().getSender(), "<green>Reset " + stats.name() + " luck.");
+                                        PlayerStats stats = luck.set(target.uuid(), target.name(), IntegerArgumentType.getInteger(context, "amount"));
+                                        Text.sendConfig(context.getSource().getSender(), config, "commands.luck-set", "{player}", stats.name(), "{luck}", String.valueOf(stats.luck()));
                                         return 1;
-                                    })))
-                    .then(Commands.literal("top-exclude")
-                            .requires(source -> source.getSender().hasPermission("clientcore.admin"))
-                            .then(Commands.argument("player", StringArgumentType.word())
-                                    .suggests((context, builder) -> suggestPlayers(builder))
-                                    .then(Commands.argument("value", StringArgumentType.word())
-                                            .suggests((context, builder) -> {
-                                                builder.suggest("true");
-                                                builder.suggest("false");
-                                                return builder.buildFuture();
-                                            })
+                                    }))));
+
+            luckCmd.then(Commands.literal("add")
+                    .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                    .then(Commands.argument("player", StringArgumentType.word())
+                            .suggests((context, builder) -> suggestPlayers(builder))
+                            .then(Commands.argument("amount", IntegerArgumentType.integer())
+                                    .executes(context -> {
+                                        PlayerTarget target = target(StringArgumentType.getString(context, "player"));
+                                        PlayerStats stats = luck.add(target.uuid(), target.name(), IntegerArgumentType.getInteger(context, "amount"));
+                                        Text.sendConfig(context.getSource().getSender(), config, "commands.luck-added", "{player}", stats.name(), "{luck}", String.valueOf(stats.luck()));
+                                        return 1;
+                                    }))));
+
+            luckCmd.then(Commands.literal("remove")
+                    .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                    .then(Commands.argument("player", StringArgumentType.word())
+                            .suggests((context, builder) -> suggestPlayers(builder))
+                            .then(Commands.argument("amount", IntegerArgumentType.integer(0))
+                                    .executes(context -> {
+                                        PlayerTarget target = target(StringArgumentType.getString(context, "player"));
+                                        PlayerStats stats = luck.add(target.uuid(), target.name(), -IntegerArgumentType.getInteger(context, "amount"));
+                                        Text.sendConfig(context.getSource().getSender(), config, "commands.luck-removed", "{player}", stats.name(), "{luck}", String.valueOf(stats.luck()));
+                                        return 1;
+                                    }))));
+
+            luckCmd.then(Commands.literal("reset")
+                    .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                    .then(Commands.argument("player", StringArgumentType.word())
+                            .suggests((context, builder) -> suggestPlayers(builder))
+                            .executes(context -> {
+                                PlayerTarget target = target(StringArgumentType.getString(context, "player"));
+                                PlayerStats stats = luck.set(target.uuid(), target.name(), 0.0D);
+                                Text.sendConfig(context.getSource().getSender(), config, "commands.luck-reset", "{player}", stats.name());
+                                return 1;
+                            })));
+
+            luckCmd.then(Commands.literal("top-exclude")
+                    .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                    .then(Commands.argument("player", StringArgumentType.word())
+                            .suggests((context, builder) -> suggestPlayers(builder))
+                            .then(Commands.argument("value", StringArgumentType.word())
+                                    .suggests((context, builder) -> {
+                                        builder.suggest("true");
+                                        builder.suggest("false");
+                                        return builder.buildFuture();
+                                    })
+                                    .executes(context -> {
+                                        PlayerTarget target = target(StringArgumentType.getString(context, "player"));
+                                        boolean excluded = Boolean.parseBoolean(StringArgumentType.getString(context, "value"));
+                                        PlayerStats stats = luck.excludeTop(target.uuid(), target.name(), excluded);
+                                        Text.sendConfig(context.getSource().getSender(), config, "commands.luck-exclude", "{player}", stats.name(), "{state}", String.valueOf(stats.excludedFromTop()));
+                                        return 1;
+                                    }))));
+
+            luckCmd.then(Commands.literal("giveitem")
+                    .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                    .then(Commands.argument("player", StringArgumentType.word())
+                            .suggests((context, builder) -> suggestPlayers(builder))
+                            .then(Commands.argument("luck", IntegerArgumentType.integer(0))
+                                    .then(Commands.argument("amount", IntegerArgumentType.integer(1, 2304))
                                             .executes(context -> {
-                                                PlayerTarget target = target(StringArgumentType.getString(context, "player"));
-                                                boolean excluded = Boolean.parseBoolean(StringArgumentType.getString(context, "value"));
-                                                PlayerStats stats = luck.excludeTop(target.uuid(), target.name(), excluded);
-                                                Text.send(context.getSource().getSender(), "<green>Top exclusion for " + stats.name() + " = " + stats.excludedFromTop() + ".");
+                                                Player player = Bukkit.getPlayerExact(StringArgumentType.getString(context, "player"));
+                                                if (player == null) {
+                                                    Text.sendConfig(context.getSource().getSender(), config, "commands.player-not-found");
+                                                    return 0;
+                                                }
+                                                int luckAmount = IntegerArgumentType.getInteger(context, "luck");
+                                                int itemAmount = IntegerArgumentType.getInteger(context, "amount");
+                                                int remaining = itemAmount;
+                                                while (remaining > 0) {
+                                                    var item = luckItems.build(player, luckAmount);
+                                                    int stack = Math.min(item.getMaxStackSize(), remaining);
+                                                    item.setAmount(stack);
+                                                    player.give(item);
+                                                    remaining -= stack;
+                                                }
+                                                Text.sendConfig(context.getSource().getSender(), config, "commands.luck-item-given",
+                                                        "{amount}", String.valueOf(itemAmount), "{luck}", String.valueOf(luckAmount), "{player}", player.getName());
                                                 return 1;
-                                            }))))
-                    .then(Commands.literal("giveitem")
-                            .requires(source -> source.getSender().hasPermission("clientcore.admin"))
-                            .then(Commands.argument("player", StringArgumentType.word())
-                                    .suggests((context, builder) -> suggestPlayers(builder))
-                                    .then(Commands.argument("luck", IntegerArgumentType.integer(0))
-                                            .then(Commands.argument("amount", IntegerArgumentType.integer(1, 2304))
-                                                    .executes(context -> {
-                                                        Player player = Bukkit.getPlayerExact(StringArgumentType.getString(context, "player"));
-                                                        if (player == null) {
-                                                            Text.send(context.getSource().getSender(), "<red>Player must be online to receive a luck item.");
-                                                            return 0;
-                                                        }
-                                                        int luckAmount = IntegerArgumentType.getInteger(context, "luck");
-                                                        int itemAmount = IntegerArgumentType.getInteger(context, "amount");
-                                                        int remaining = itemAmount;
-                                                        while (remaining > 0) {
-                                                            var item = luckItems.build(player, luckAmount);
-                                                            int stack = Math.min(item.getMaxStackSize(), remaining);
-                                                            item.setAmount(stack);
-                                                            player.give(item);
-                                                            remaining -= stack;
-                                                        }
-                                                        Text.send(context.getSource().getSender(), "<green>Gave " + itemAmount + " luck item(s) worth " + luckAmount + " luck to " + player.getName() + ".");
-                                                        return 1;
-                                                    }))))));
+                                            })))));
+
+            rootBuilder.then(luckCmd);
 
             event.registrar().register(plugin.getPluginMeta(), rootBuilder.build(), "ClientCore admin command", List.of("ccore"));
         });
@@ -361,16 +369,17 @@ public final class ClientCoreCommands {
         }
     }
 
-    private static void sendLuckTop(ClientCore plugin, CommandSender sender, LuckService luck, int limit) {
+    private static void sendLuckTop(ClientCore plugin, ConfigManager config, CommandSender sender, LuckService luck, int limit) {
         luck.top(limit).thenAccept(stats -> plugin.getServer().getGlobalRegionScheduler().execute(plugin, () -> {
             if (stats.isEmpty()) {
-                Text.send(sender, "<yellow>No luck records found.");
+                Text.sendConfig(sender, config, "commands.luck-top-empty");
                 return;
             }
-            Text.send(sender, "<aqua>Luck Top</aqua>");
+            Text.sendConfig(sender, config, "commands.luck-top-header");
             int index = 1;
             for (PlayerStats row : stats) {
-                Text.send(sender, "<gray>#" + index + " <white>" + row.name() + "</white> <aqua>" + row.luck() + "</aqua></gray>");
+                Text.sendConfig(sender, config, "commands.luck-top-row",
+                        "{rank}", String.valueOf(index), "{player}", row.name(), "{luck}", String.valueOf(row.luck()));
                 index++;
             }
         }));

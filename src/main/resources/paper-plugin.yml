@@ -22,6 +22,12 @@ dependencies:
     MythicMobs:
       load: BEFORE
       required: false
+    FancyNpcs:
+      load: BEFORE
+      required: false
+    Citizens:
+      load: BEFORE
+      required: false
 permissions:
   clientcore.admin:
     default: op

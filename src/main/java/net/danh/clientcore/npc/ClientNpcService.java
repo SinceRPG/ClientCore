@@ -45,7 +45,7 @@ public final class ClientNpcService implements Listener {
 
     public void reload() {
         this.enabled = configManager.getNpcs().getBoolean("client-npcs.enabled", true);
-        this.rules = new NpcRuleLoader(plugin, configManager.getNpcs()).load();
+        this.rules = new NpcRuleLoader(plugin, configManager).load();
 
         if (refreshTask != null) refreshTask.cancel();
 
@@ -98,20 +98,8 @@ public final class ClientNpcService implements Listener {
         String parsedName = hooks.placeholders(viewer, rule.name());
 
         if ("FANCYNPCS".equalsIgnoreCase(rule.providerType()) && hooks.hasFancyNpcs()) {
-            Object fancy = hooks.spawnFancyNpc(parsedName, rule.location(), rule.entityType(), viewer);
-            if (fancy != null) {
-                return new ClientNpc() {
-                    @Override
-                    public void remove(Player p) {
-                        hooks.removeFancyNpc(fancy, p);
-                    }
-
-                    @Override
-                    public Object getHandle() {
-                        return fancy;
-                    }
-                };
-            }
+            ClientNpc fancy = hooks.spawnFancyNpc(parsedName, rule.location(), rule.entityType(), viewer);
+            if (fancy != null) return fancy;
         }
 
         Entity bukkitEntity = null;

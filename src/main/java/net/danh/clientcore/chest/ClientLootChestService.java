@@ -115,8 +115,7 @@ public final class ClientLootChestService implements Listener {
                 event.setCancelled(true);
 
                 if (cooldownManager.isOnCooldown(player.getUniqueId(), "chest", rule.id())) {
-                    String msg = configManager.getMessages().getString("messages.chest-cooldown", "<red>This chest is currently empty.");
-                    Text.send(player, msg);
+                    Text.sendConfig(player, configManager, "commands.chest-cooldown");
                     return;
                 }
 

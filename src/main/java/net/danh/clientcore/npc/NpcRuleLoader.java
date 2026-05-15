@@ -1,10 +1,11 @@
 package net.danh.clientcore.npc;
 
+import net.danh.clientcore.config.ConfigManager;
+import net.danh.clientcore.util.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.plugin.Plugin;
 
@@ -13,16 +14,16 @@ import java.util.List;
 
 public final class NpcRuleLoader {
     private final Plugin plugin;
-    private final YamlConfiguration config;
+    private final ConfigManager configManager;
 
-    public NpcRuleLoader(Plugin plugin, YamlConfiguration config) {
+    public NpcRuleLoader(Plugin plugin, ConfigManager configManager) {
         this.plugin = plugin;
-        this.config = config;
+        this.configManager = configManager;
     }
 
     public List<NpcRule> load() {
         List<NpcRule> rules = new ArrayList<>();
-        ConfigurationSection root = config.getConfigurationSection("client-npcs.rules");
+        ConfigurationSection root = configManager.getNpcs().getConfigurationSection("client-npcs.rules");
         if (root == null) return rules;
 
         for (String id : root.getKeys(false)) {
@@ -33,12 +34,15 @@ public final class NpcRuleLoader {
             try {
                 type = EntityType.valueOf(section.getString("entity-type", "VILLAGER").toUpperCase());
             } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Invalid entity-type for NPC: " + id);
+                Text.warn(plugin, configManager, "console.invalid-entity", "{rule}", id, "{type}", section.getString("entity-type"));
             }
 
             String worldName = section.getString("location.world", "world");
             World world = Bukkit.getWorld(worldName);
-            if (world == null) continue;
+            if (world == null) {
+                Text.warn(plugin, configManager, "console.world-not-found", "{rule}", id, "{world}", worldName);
+                continue;
+            }
 
             Location location = new Location(
                     world,

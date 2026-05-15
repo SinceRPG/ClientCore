@@ -1,6 +1,8 @@
 package net.danh.clientcore.mob;
 
+import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.storage.StorageService;
+import net.danh.clientcore.util.Text;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
@@ -12,12 +14,14 @@ import java.util.*;
 
 public final class SpawnPointStore {
     private final Plugin plugin;
+    private final ConfigManager configManager;
     private final File file;
     private final StorageService storage;
     private final Map<String, SpawnPoint> points = new LinkedHashMap<>();
 
-    public SpawnPointStore(Plugin plugin, StorageService storage) {
+    public SpawnPointStore(Plugin plugin, ConfigManager configManager, StorageService storage) {
         this.plugin = plugin;
+        this.configManager = configManager;
         this.storage = storage;
         this.file = new File(plugin.getDataFolder(), "spawns.yml");
     }
@@ -43,7 +47,7 @@ public final class SpawnPointStore {
             }
             World world = plugin.getServer().getWorld(section.getString("world", "world"));
             if (world == null) {
-                plugin.getLogger().warning("Skipping spawn " + id + " because its world is not loaded.");
+                Text.warn(plugin, configManager, "console.world-not-found", "{rule}", id, "{world}", section.getString("world"));
                 continue;
             }
             Location location = new Location(world, section.getDouble("x"), section.getDouble("y"), section.getDouble("z"));
@@ -57,7 +61,7 @@ public final class SpawnPointStore {
         }
         if (!points.isEmpty()) {
             storage.saveSpawns(List.copyOf(points.values()));
-            plugin.getLogger().info("Migrated " + points.size() + " spawn point(s) from spawns.yml into SQL storage.");
+            Text.log(plugin, configManager, "console.migrated-spawns", "{count}", String.valueOf(points.size()));
         }
     }
 

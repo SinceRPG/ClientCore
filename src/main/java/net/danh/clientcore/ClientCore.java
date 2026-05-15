@@ -16,6 +16,7 @@ import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.storage.CooldownManager;
 import net.danh.clientcore.storage.StorageService;
 import net.danh.clientcore.util.FoliaScheduler;
+import net.danh.clientcore.util.Text;
 import net.danh.clientcore.visibility.VisibilityService;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
@@ -40,18 +41,17 @@ public final class ClientCore extends JavaPlugin {
 
     @Override
     public void onLoad() {
+        this.configManager = new ConfigManager(this);
+        this.configManager.loadAll();
         try {
-            WorldGuardFlagRegistrar.register(this);
+            WorldGuardFlagRegistrar.register(this, configManager);
         } catch (NoClassDefFoundError ignored) {
-            getLogger().info("WorldGuard not found during load; custom flag registration skipped.");
+            Text.log(this, configManager, "console.wg-not-found");
         }
     }
 
     @Override
     public void onEnable() {
-        this.configManager = new ConfigManager(this);
-        this.configManager.loadAll();
-
         this.scheduler = new FoliaScheduler(this);
         this.hooks = new HookRegistry(this, configManager);
         this.packets = new ClientPacketService();
@@ -94,7 +94,7 @@ public final class ClientCore extends JavaPlugin {
             luckService.load(player);
         }
 
-        getLogger().info("ClientCore enabled for Paper/Folia " + getServer().getMinecraftVersion());
+        Text.log(this, configManager, "console.enabled", "{version}", getServer().getMinecraftVersion());
     }
 
     @Override

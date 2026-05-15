@@ -53,8 +53,6 @@ public final class LuckItemService implements Listener {
         luck.add(player.getUniqueId(), player.getName(), amount);
         item.subtract();
 
-        String msg = configManager.getMessages().getString("messages.luck-item-used", "<green>You gained <white>%amount%</white> luck.")
-                .replace("%amount%", String.valueOf(amount));
-        Text.send(player, msg);
+        Text.sendConfig(player, configManager, "commands.luck-item-used", "{amount}", String.valueOf(amount));
     }
 }

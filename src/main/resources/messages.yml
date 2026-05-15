@@ -3,6 +3,43 @@
 # MiniMessage format is fully supported (e.g., <red>, <bold>, <gradient>)
 # ==============================================================================
 
-messages:
-  luck-item-used: "<green>You successfully consumed the token and gained <white>%amount%</white> luck."
+prefix: "<dark_gray>[<aqua>ClientCore</aqua>]<reset> "
+
+commands:
+  only-players: "<red>Only players can execute this command."
+  player-not-found: "<red>Player not found or is offline."
+  reloaded: "<green>ClientCore configurations reloaded successfully."
+  status: "<aqua>ClientCore</aqua> <gray>Blocks: {blocks} | Mobs: {mobs}</gray>"
+  blocks-refreshed: "<green>Refreshed client-side blocks around you."
+  visibility-hidden: "<green>You are now hidden from other players."
+  visibility-visible: "<green>You are now visible to other players."
+  mob-spawned: "<green>Spawned {amount} client mob(s)."
+  spawn-set: "<green>Set spawn <white>{id}</white> at your location."
+  spawn-deleted: "<green>Deleted spawn {id}."
+  spawn-not-found: "<red>Spawn not found: {id}"
+  spawn-none: "<yellow>No client mob spawns configured."
+  spawn-list-item: "<aqua>{id}</aqua> <gray>Rule: {rule} | Amount: {amount} | Radius: {radius}</gray>"
+  spawn-updated: "<green>Updated {id}: {attribute} = {value}."
+  spawn-invalid-attribute: "<red>Invalid attribute or value provided."
+  debug-set: "<green>Debug mode set to {state}."
+  luck-profile: "<aqua>Luck</aqua><gray>: <white>{luck}</white></gray>"
+  luck-set: "<green>Set {player}'s luck to {luck}."
+  luck-added: "<green>Added luck. {player} now has {luck}."
+  luck-removed: "<green>Removed luck. {player} now has {luck}."
+  luck-reset: "<green>Reset {player}'s luck."
+  luck-exclude: "<green>Top exclusion for {player} set to {state}."
+  luck-item-given: "<green>Gave {amount} luck item(s) worth {luck} luck to {player}."
+  luck-item-used: "<green>You successfully consumed the token and gained <white>{amount}</white> luck."
+  luck-top-empty: "<yellow>No luck records found."
+  luck-top-header: "<aqua>--- Luck Top ---</aqua>"
+  luck-top-row: "<gray>#{rank} <white>{player}</white> <aqua>{luck}</aqua></gray>"
   chest-cooldown: "<red>This chest is currently empty. Check back later!"
+
+console:
+  enabled: "ClientCore enabled for Paper/Folia {version}"
+  migrated-spawns: "Migrated {count} spawn point(s) from spawns.yml into SQL storage."
+  wg-flag-exists: "WorldGuard flag clientcore-regen already exists, using the registered flag."
+  wg-not-found: "WorldGuard not found during load; custom flag registration skipped."
+  invalid-entity: "Invalid entity-type for rule {rule}: {type}"
+  world-not-found: "World not found for rule {rule}: {world}"
+  hook-failed: "Failed to spawn {plugin} entity: {error}"

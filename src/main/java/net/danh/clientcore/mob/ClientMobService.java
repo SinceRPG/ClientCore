@@ -61,13 +61,13 @@ public final class ClientMobService implements Listener {
         this.conditions = new ConditionEvaluator(hooks);
         this.ownerKey = new NamespacedKey(plugin, "client_mob_owner");
         this.spawnKey = new NamespacedKey(plugin, "client_mob_spawn");
-        this.spawns = new SpawnPointStore(plugin, storage);
+        this.spawns = new SpawnPointStore(plugin, configManager, storage);
         this.spawns.load();
     }
 
     public void reload() {
         this.enabled = configManager.getMobs().getBoolean("client-mobs.enabled", true);
-        this.rules = new MobRuleLoader(plugin, configManager.getMobs()).load();
+        this.rules = new MobRuleLoader(plugin, configManager).load();
         if (spawnTask != null) spawnTask.cancel();
         spawnTask = scheduler.globalTimer(20L, 20L, task -> tickSpawns());
     }

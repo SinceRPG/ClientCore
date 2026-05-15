@@ -44,7 +44,7 @@ luck:
 
 hooks:
   # Toggle hooks to third-party plugins on or off.
-  # Set these to false if the plugin is not installed to prevent errors.
+  # Set these to false if the plugin is not installed to prevent Java class errors.
   placeholderapi: true
   worldguard: true
   mmoitems: true

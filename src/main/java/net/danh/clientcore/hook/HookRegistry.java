@@ -5,20 +5,13 @@ import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.protection.flags.Flag;
 import com.sk89q.worldguard.protection.flags.StateFlag;
-import de.oliver.fancynpcs.api.FancyNpcsPlugin;
-import de.oliver.fancynpcs.api.Npc;
-import de.oliver.fancynpcs.api.NpcData;
-import io.lumine.mythic.api.mobs.MythicMob;
-import io.lumine.mythic.bukkit.MythicBukkit;
 import me.clip.placeholderapi.PlaceholderAPI;
-import net.Indyuce.mmoitems.MMOItems;
-import net.Indyuce.mmoitems.api.Type;
-import net.Indyuce.mmoitems.api.item.template.MMOItemTemplate;
-import net.citizensnpcs.api.CitizensAPI;
-import net.citizensnpcs.api.npc.MemoryNPCDataStore;
-import net.citizensnpcs.api.npc.NPC;
-import net.citizensnpcs.api.npc.NPCRegistry;
 import net.danh.clientcore.config.ConfigManager;
+import net.danh.clientcore.hook.plugin.CitizensHook;
+import net.danh.clientcore.hook.plugin.FancyNpcsHook;
+import net.danh.clientcore.hook.plugin.MMOItemsHook;
+import net.danh.clientcore.hook.plugin.MythicMobsHook;
+import net.danh.clientcore.npc.ClientNpc;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
@@ -29,7 +22,6 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 public final class HookRegistry {
     private final Plugin plugin;
@@ -96,73 +88,36 @@ public final class HookRegistry {
 
     public Optional<ItemStack> mmoItem(String typeId, String itemId) {
         if (!mmoItems || typeId == null || itemId == null) return Optional.empty();
-        Type type = Type.get(typeId);
-        if (type == null) return Optional.empty();
-        return Optional.ofNullable(MMOItems.plugin.getItem(type, itemId));
+        return MMOItemsHook.getItem(typeId, itemId);
     }
 
     public Optional<Entity> mythicMob(String mobId, Location location, double level) {
         if (!mythicMobs || mobId == null || mobId.isBlank()) return Optional.empty();
-        Optional<MythicMob> mob = MythicBukkit.inst().getMobManager().getMythicMob(mobId);
-        if (mob.isEmpty()) return Optional.empty();
-        return Optional.ofNullable(io.lumine.mythic.bukkit.BukkitAdapter.adapt(
-                mob.get().spawn(io.lumine.mythic.bukkit.BukkitAdapter.adapt(location), level).getEntity()
-        ));
+        return MythicMobsHook.spawn(mobId, location, level);
     }
 
-    public Object spawnFancyNpc(String name, Location loc, EntityType type, Player viewer) {
+    public ClientNpc spawnFancyNpc(String name, Location loc, EntityType type, Player viewer) {
         if (!fancyNpcs) return null;
-        try {
-            UUID npcId = UUID.randomUUID();
-            NpcData data = new NpcData(npcId.toString(), viewer.getUniqueId(), loc);
-            data.setType(type);
-            data.setDisplayName(name);
-            Npc npc = FancyNpcsPlugin.get().getNpcAdapter().apply(data);
-            npc.create();
-            npc.spawn(viewer);
-            return npc;
-        } catch (Throwable t) {
-            plugin.getLogger().warning("Failed to spawn FancyNpc: " + t.getMessage());
-            return null;
-        }
-    }
-
-    public void removeFancyNpc(Object npcObject, Player viewer) {
-        if (!fancyNpcs || !(npcObject instanceof Npc npc)) return;
-        try {
-            npc.remove(viewer);
-            FancyNpcsPlugin.get().getNpcManager().removeNpc(npc);
-        } catch (Throwable ignored) {
-        }
+        return FancyNpcsHook.spawn(plugin, config, name, loc, type, viewer);
     }
 
     public Entity spawnCitizensNpc(String name, Location loc, EntityType type) {
         if (!citizens) return null;
-        try {
-            NPCRegistry registry = CitizensAPI.createAnonymousNPCRegistry(new MemoryNPCDataStore());
-            NPC npc = registry.createNPC(type, name);
-            if (npc.spawn(loc)) return npc.getEntity();
-            return null;
-        } catch (Throwable t) {
-            plugin.getLogger().warning("Failed to spawn Citizens NPC: " + t.getMessage());
-            return null;
-        }
+        return CitizensHook.spawn(plugin, config, name, loc, type);
     }
 
     public List<String> mythicMobIds() {
         if (!mythicMobs) return List.of();
-        return MythicBukkit.inst().getMobManager().getMobNames().stream().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+        return MythicMobsHook.getMobIds();
     }
 
     public List<String> mmoItemTypes() {
         if (!mmoItems) return List.of();
-        return MMOItems.plugin.getTypes().getAll().stream().map(Type::getId).sorted(String.CASE_INSENSITIVE_ORDER).toList();
+        return MMOItemsHook.getTypes();
     }
 
     public List<String> mmoItemIds(String typeId) {
         if (!mmoItems || typeId == null || typeId.isBlank()) return List.of();
-        Type type = Type.get(typeId);
-        if (type == null) return List.of();
-        return MMOItems.plugin.getTemplates().getTemplates(type).stream().map(MMOItemTemplate::getId).sorted(String.CASE_INSENSITIVE_ORDER).toList();
+        return MMOItemsHook.getItems(typeId);
     }
 }
