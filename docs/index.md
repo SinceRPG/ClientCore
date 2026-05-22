@@ -5,8 +5,11 @@ title: Welcome to ClientCore
 
 # Welcome to ClientCore Documentation
 
-ClientCore is a powerful Paper/Folia plugin designed to provide immersive, client-side visual elements for your players.
-By manipulating packets, it allows you to create instanced features that only specific players can see.
+ClientCore is a powerful Paper/Folia plugin designed to provide immersive, client-side visual elements for your players. By manipulating packets, it allows you to create instanced features that only specific players can see.
+
+## ⚠️ Requirements
+
+**ClientCore strictly requires the [PacketEvents](https://modrinth.com/plugin/packetevents) plugin to be installed on your server.** It uses PacketEvents to intercept and manipulate packets safely. You must download the separate PacketEvents jar and place it in your `plugins/` folder alongside ClientCore.
 
 ## Features
 
