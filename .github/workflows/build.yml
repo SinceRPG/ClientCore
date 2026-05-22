@@ -144,7 +144,7 @@ jobs:
                 }]
               }' > build_success.json
 
-            JAR_FILE=$(find build/libs -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+            JAR_FILE=$(find build/libs -maxdepth 1 -name "*-all.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
             if [ -n "$JAR_FILE" ] && [ -f "$JAR_FILE" ]; then
               curl -s -X PATCH -F "payload_json=<build_success.json;type=application/json" -F "file=@$JAR_FILE" "${WEBHOOK_URL}/messages/${MSG_ID}?thread_id=${THREAD_ID}"
             else
