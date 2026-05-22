@@ -30,9 +30,21 @@ public final class FoliaScheduler {
     private static void cancel(Object task) {
         if (task == null) return;
         try {
-            task.getClass().getMethod("cancel").invoke(task);
-        } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException("Failed to cancel scheduled task", ex);
+            Class<?> scheduledTask = Class.forName("io.papermc.paper.threadedregions.scheduler.ScheduledTask");
+            scheduledTask.getMethod("cancel").invoke(task);
+            return;
+        } catch (ClassNotFoundException ignored) {
+            // Non-Folia servers cancel through BukkitTask method references before this helper is used.
+        } catch (ReflectiveOperationException ignored) {
+            // Fall through to the implementation-class fallback below.
+        }
+
+        try {
+            Method cancel = task.getClass().getMethod("cancel");
+            cancel.setAccessible(true);
+            cancel.invoke(task);
+        } catch (ReflectiveOperationException ignored) {
+            // Cancellation is best-effort during shutdown; plugin disable must not fail because a task is already gone.
         }
     }
 
