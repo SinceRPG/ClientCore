@@ -28,6 +28,7 @@ public final class HookRegistry {
     private boolean worldGuard;
     private boolean mmoItems;
     private boolean mythicMobs;
+    private boolean modelEngine;
     private boolean citizens;
     private boolean fancyNpcs;
 
@@ -42,6 +43,7 @@ public final class HookRegistry {
         this.worldGuard = enabled("worldguard") && Bukkit.getPluginManager().isPluginEnabled("WorldGuard");
         this.mmoItems = enabled("mmoitems") && Bukkit.getPluginManager().isPluginEnabled("MMOItems");
         this.mythicMobs = enabled("mythicmobs") && Bukkit.getPluginManager().isPluginEnabled("MythicMobs");
+        this.modelEngine = enabled("modelengine") && Bukkit.getPluginManager().isPluginEnabled("ModelEngine");
         this.citizens = enabled("citizens") && Bukkit.getPluginManager().isPluginEnabled("Citizens");
         this.fancyNpcs = enabled("fancynpcs") && Bukkit.getPluginManager().isPluginEnabled("FancyNpcs");
     }
@@ -74,6 +76,10 @@ public final class HookRegistry {
 
     public boolean hasMythicMobs() {
         return mythicMobs;
+    }
+
+    public boolean hasModelEngine() {
+        return modelEngine;
     }
 
     public boolean hasCitizens() {

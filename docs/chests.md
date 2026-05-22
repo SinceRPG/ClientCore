@@ -4,7 +4,7 @@ title: Chests Configuration
 nav_order: 4
 ---
 
-# Loot Chests (`chests.yml`)
+# Loot Chests (`chests/chests.yml`)
 
 Create client-sided chests that players can interact with to receive items.
 
@@ -14,6 +14,9 @@ A fake chest block is rendered for eligible players. Right-clicking it opens a c
 After looting, a cooldown is applied to that specific player.
 
 ## Example Configuration
+
+All `.yml` files inside `chests/` are loaded and merged. A file can use the full `client-loot-chests:` root, a `rules:`
+root, or direct rule IDs.
 
 ```yaml
 rules:

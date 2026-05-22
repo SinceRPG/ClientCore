@@ -10,6 +10,7 @@ import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.drop.ClientDropService;
 import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.hook.WorldGuardFlagRegistrar;
+import net.danh.clientcore.hook.plugin.ModelEngineClientMobListener;
 import net.danh.clientcore.luck.LuckItemService;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.mob.ClientMobService;
@@ -86,6 +87,13 @@ public final class ClientCore extends JavaPlugin {
         getServer().getPluginManager().registerEvents(cooldownManager, this);
         getServer().getPluginManager().registerEvents(blockRegenService, this);
         getServer().getPluginManager().registerEvents(clientMobService, this);
+        if (hooks.hasModelEngine()) {
+            try {
+                getServer().getPluginManager().registerEvents(new ModelEngineClientMobListener(this, scheduler, clientMobService), this);
+            } catch (NoClassDefFoundError ignored) {
+                // ModelEngine was disabled or missing during class loading.
+            }
+        }
         getServer().getPluginManager().registerEvents(clientNpcService, this);
         getServer().getPluginManager().registerEvents(clientDropService, this);
         getServer().getPluginManager().registerEvents(clientLootChestService, this);

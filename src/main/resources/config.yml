@@ -62,5 +62,6 @@ hooks:
   worldguard: true     # Enables region-based checks for block regen and spawning.
   mmoitems: true       # Enables dropping custom items defined in MMOItems.
   mythicmobs: true     # Enables spawning custom mobs defined in MythicMobs.
+  modelengine: true    # Enables hiding ModelEngine render entities for client-side mobs.
   citizens: true       # Enables using Citizens for client-side NPCs.
   fancynpcs: true      # Enables using FancyNpcs for client-side NPCs.

@@ -1,6 +1,7 @@
 package net.danh.clientcore.command;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
@@ -110,6 +111,49 @@ public final class ClientCoreCommands {
                                 Text.sendConfig(player, config, "commands.mob-spawned", "{amount}", String.valueOf(amount));
                                 return amount;
                             })));
+
+            rootBuilder.then(Commands.literal("mythicspawn")
+                    .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                    .then(Commands.argument("viewer", StringArgumentType.word())
+                            .suggests((context, builder) -> {
+                                if (context.getSource().getSender() instanceof Player) {
+                                    builder.suggest("self");
+                                }
+                                return suggestPlayers(builder);
+                            })
+                            .then(Commands.argument("mob", StringArgumentType.word())
+                                    .suggests((context, builder) -> {
+                                        for (String value : mobService.mythicMobIds()) {
+                                            builder.suggest(value);
+                                        }
+                                        return builder.buildFuture();
+                                    })
+                                    .executes(context -> spawnMythic(plugin, config, mobService, context.getSource().getSender(),
+                                            StringArgumentType.getString(context, "viewer"),
+                                            StringArgumentType.getString(context, "mob"), 1.0D, 1))
+                                    .then(Commands.argument("level", DoubleArgumentType.doubleArg(0.0D))
+                                            .suggests((context, builder) -> {
+                                                for (String value : List.of("1", "5", "10", "25", "50", "100")) {
+                                                    builder.suggest(value);
+                                                }
+                                                return builder.buildFuture();
+                                            })
+                                            .executes(context -> spawnMythic(plugin, config, mobService, context.getSource().getSender(),
+                                                    StringArgumentType.getString(context, "viewer"),
+                                                    StringArgumentType.getString(context, "mob"),
+                                                    DoubleArgumentType.getDouble(context, "level"), 1))
+                                            .then(Commands.argument("amount", IntegerArgumentType.integer(1, 50))
+                                                    .suggests((context, builder) -> {
+                                                        for (String value : List.of("1", "2", "3", "5", "10")) {
+                                                            builder.suggest(value);
+                                                        }
+                                                        return builder.buildFuture();
+                                                    })
+                                                    .executes(context -> spawnMythic(plugin, config, mobService, context.getSource().getSender(),
+                                                            StringArgumentType.getString(context, "viewer"),
+                                                            StringArgumentType.getString(context, "mob"),
+                                                            DoubleArgumentType.getDouble(context, "level"),
+                                                            IntegerArgumentType.getInteger(context, "amount"))))))));
 
             rootBuilder.then(Commands.literal("setspawn")
                     .requires(source -> source.getSender().hasPermission("clientcore.admin"))
@@ -354,6 +398,31 @@ public final class ClientCoreCommands {
             builder.suggest(player.getName());
         }
         return builder.buildFuture();
+    }
+
+    private static int spawnMythic(ClientCore plugin, ConfigManager config, ClientMobService mobService, CommandSender sender, String viewerInput, String mobId, double level, int amount) {
+        Player viewer;
+        if (viewerInput.equalsIgnoreCase("self")) {
+            if (!(sender instanceof Player player)) {
+                Text.sendConfig(sender, config, "commands.only-players");
+                return 0;
+            }
+            viewer = player;
+        } else {
+            viewer = Bukkit.getPlayerExact(viewerInput);
+            if (viewer == null) {
+                Text.sendConfig(sender, config, "commands.player-not-found");
+                return 0;
+            }
+        }
+
+        for (int i = 0; i < amount; i++) {
+            Location location = viewer.getLocation().add(viewer.getLocation().getDirection().normalize().multiply(3 + i));
+            plugin.scheduler().region(location, () -> mobService.spawnMythicFor(viewer, location, mobId, level));
+        }
+        Text.sendConfig(sender, config, "commands.mythic-mob-spawned",
+                "{amount}", String.valueOf(amount), "{mob}", mobId, "{player}", viewer.getName(), "{level}", String.valueOf(level));
+        return amount;
     }
 
     private static PlayerTarget target(String input) {

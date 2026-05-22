@@ -4,7 +4,7 @@ title: NPCs Configuration
 nav_order: 8
 ---
 
-# Client-Side NPCs (`npcs.yml`)
+# Client-Side NPCs (`npcs/npcs.yml`)
 
 Similar to client-sided mobs, but designed specifically around NPC providers.
 
@@ -18,6 +18,9 @@ You can choose which plugin powers the NPC:
 - `VANILLA`
 
 ## Example Configuration
+
+All `.yml` files inside `npcs/` are loaded and merged. A file can use the full `client-npcs:` root, a `rules:` root,
+or direct rule IDs.
 
 ```yaml
 rules:

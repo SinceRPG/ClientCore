@@ -4,7 +4,7 @@ title: Blocks Configuration
 nav_order: 3
 ---
 
-# Blocks Regeneration (`blocks.yml`)
+# Blocks Regeneration (`blocks/blocks.yml`)
 
 This module allows you to send fake block updates to clients, effectively creating client-sided ores or resource nodes.
 
@@ -16,6 +16,9 @@ This module allows you to send fake block updates to clients, effectively creati
 4. After `regen-ticks`, it turns back into the `ready-block`.
 
 ## Example Configuration
+
+All `.yml` files inside `blocks/` are loaded and merged. A file can use the full `block-regen:` root, a `rules:` root,
+or direct rule IDs such as `ore_a:` and `ore_b:`.
 
 ```yaml
 rules:

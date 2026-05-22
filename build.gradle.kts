@@ -29,6 +29,7 @@ dependencies {
     compileOnly("io.lumine:Mythic-Dist:5.12.0-SNAPSHOT") { isTransitive = false }
     compileOnly("io.lumine:MythicLib-dist:1.7.1-SNAPSHOT") { isTransitive = false }
     compileOnly("net.Indyuce:MMOItems-API:6.10.1-SNAPSHOT") { isTransitive = false }
+    compileOnly("com.ticxo.modelengine:ModelEngine:R4.1.0") { isTransitive = false }
 
     // Optional NPC Hooks
     compileOnly("net.citizensnpcs:citizens-main:2.0.42-SNAPSHOT") { isTransitive = false }

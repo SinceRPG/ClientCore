@@ -1,6 +1,7 @@
 package net.danh.clientcore.mob;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import io.lumine.mythic.bukkit.events.MythicMobSpawnEvent;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
@@ -15,7 +16,9 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
@@ -35,6 +38,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class ClientMobService implements Listener {
+    private static final double VISUAL_ENTITY_RADIUS_SQUARED = 9.0D;
+    private static final EnumSet<EntityType> VISUAL_ENTITY_TYPES = EnumSet.of(
+            EntityType.ARMOR_STAND,
+            EntityType.TEXT_DISPLAY,
+            EntityType.ITEM_DISPLAY,
+            EntityType.BLOCK_DISPLAY,
+            EntityType.INTERACTION,
+            EntityType.SLIME,
+            EntityType.MAGMA_CUBE
+    );
+
     private final Plugin plugin;
     private final ConfigManager configManager;
     private final FoliaScheduler scheduler;
@@ -49,6 +63,7 @@ public final class ClientMobService implements Listener {
     private final Map<UUID, String> ownerSpawns = new ConcurrentHashMap<>();
     private final Map<UUID, Entity> clientEntities = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> entityIds = new ConcurrentHashMap<>();
+    private final Map<Integer, UUID> packetEntityOwners = new ConcurrentHashMap<>();
     private final Random random = new Random();
     private final AtomicLong spawnTick = new AtomicLong();
     private List<MobRule> rules = List.of();
@@ -94,6 +109,7 @@ public final class ClientMobService implements Listener {
         ownerSpawns.clear();
         clientEntities.clear();
         entityIds.clear();
+        packetEntityOwners.clear();
         if (spawnTask != null) {
             spawnTask.cancel();
             spawnTask = null;
@@ -106,6 +122,10 @@ public final class ClientMobService implements Listener {
 
     public List<String> ruleIds() {
         return rules.stream().map(MobRule::id).toList();
+    }
+
+    public List<String> mythicMobIds() {
+        return hooks.mythicMobIds();
     }
 
     public List<String> spawnIds() {
@@ -134,15 +154,8 @@ public final class ClientMobService implements Listener {
 
         Entity entity = hooks.mythicMob(variant.mythicMobId(), location, level)
                 .orElseGet(() -> world.spawnEntity(location, variant.fallbackEntity()));
-        entity.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, viewer.getUniqueId().toString());
-        if (spawnId != null && !spawnId.isBlank()) {
-            entity.getPersistentDataContainer().set(spawnKey, PersistentDataType.STRING, spawnId);
-        }
 
-        owners.put(entity.getUniqueId(), viewer.getUniqueId());
-        clientEntities.put(entity.getUniqueId(), entity);
-        entityIds.put(entity.getUniqueId(), entity.getEntityId());
-        if (spawnId != null && !spawnId.isBlank()) ownerSpawns.put(entity.getUniqueId(), spawnId);
+        claimEntity(entity, viewer, spawnId, entity instanceof ArmorStand);
 
         if (entity instanceof LivingEntity living) {
             living.setRemoveWhenFarAway(false);
@@ -151,7 +164,23 @@ public final class ClientMobService implements Listener {
         if (entity instanceof Mob mob) {
             mob.setTarget(viewer);
         }
-        hideFromOthers(entity, viewer);
+        claimNearbyVisualEntities(entity, viewer, spawnId);
+        return Optional.of(entity);
+    }
+
+    public Optional<Entity> spawnMythicFor(Player viewer, Location location, String mythicMobId, double level) {
+        if (!enabled || mythicMobId == null || mythicMobId.isBlank()) return Optional.empty();
+        Entity entity = hooks.mythicMob(mythicMobId, location, level).orElse(null);
+        if (entity == null) return Optional.empty();
+
+        claimEntity(entity, viewer, "", entity instanceof ArmorStand);
+        if (entity instanceof LivingEntity living) {
+            living.setRemoveWhenFarAway(false);
+        }
+        if (entity instanceof Mob mob) {
+            mob.setTarget(viewer);
+        }
+        claimNearbyVisualEntities(entity, viewer, "");
         return Optional.of(entity);
     }
 
@@ -183,6 +212,32 @@ public final class ClientMobService implements Listener {
         return clientEntities;
     }
 
+    public Map<Integer, UUID> getPacketEntityOwners() {
+        return packetEntityOwners;
+    }
+
+    public Optional<Player> ownerPlayer(Entity entity) {
+        UUID ownerId = ownerOf(entity);
+        return ownerId == null ? Optional.empty() : Optional.ofNullable(Bukkit.getPlayer(ownerId));
+    }
+
+    public void claimPacketEntityIds(Collection<Integer> entityIds, Player viewer) {
+        if (entityIds == null || entityIds.isEmpty()) return;
+        for (Integer entityId : entityIds) {
+            if (entityId == null || entityId < 0) continue;
+            packetEntityOwners.put(entityId, viewer.getUniqueId());
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (!online.getUniqueId().equals(viewer.getUniqueId())) {
+                    packets.destroyEntity(online, entityId);
+                }
+            }
+        }
+    }
+
+    public void claimNearbyVisualEntities(Entity source, Player viewer) {
+        claimNearbyVisualEntities(source, viewer, ownerSpawns.get(source.getUniqueId()));
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
@@ -205,6 +260,7 @@ public final class ClientMobService implements Listener {
         ownerSpawns.keySet().removeIf(uuid -> !owners.containsKey(uuid));
         clientEntities.keySet().removeIf(uuid -> !owners.containsKey(uuid));
         entityIds.keySet().removeIf(uuid -> !owners.containsKey(uuid));
+        packetEntityOwners.entrySet().removeIf(entry -> entry.getValue().equals(viewerId));
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -236,8 +292,17 @@ public final class ClientMobService implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onEntitySpawn(EntitySpawnEvent event) {
-        if (!configManager.getMain().getBoolean("hooks.mythicmobs", false)) return;
         Entity entity = event.getEntity();
+        Entity nearestOwned = nearestOwnedEntity(entity);
+        if (nearestOwned != null) {
+            UUID ownerId = owners.get(nearestOwned.getUniqueId());
+            Player owner = ownerId == null ? null : Bukkit.getPlayer(ownerId);
+            if (owner != null && (VISUAL_ENTITY_TYPES.contains(entity.getType()) || MythicMobsHook.isMythicMob(entity))) {
+                claimEntity(entity, owner, ownerSpawns.get(nearestOwned.getUniqueId()), false);
+            }
+        }
+
+        if (!configManager.getMain().getBoolean("hooks.mythicmobs", false)) return;
 
         entity.getScheduler().execute(plugin, () -> {
             if (!entity.isValid()) return;
@@ -246,13 +311,39 @@ public final class ClientMobService implements Listener {
                 UUID ownerId = owners.get(parentId);
                 Player owner = Bukkit.getPlayer(ownerId);
                 if (owner != null) {
-                    owners.put(entity.getUniqueId(), ownerId);
-                    clientEntities.put(entity.getUniqueId(), entity);
-                    entityIds.put(entity.getUniqueId(), entity.getEntityId());
-                    hideFromOthers(entity, owner);
+                    claimEntity(entity, owner, ownerSpawns.get(parentId), false);
                 }
             }
         }, null, 2L);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onMythicMobSpawn(MythicMobSpawnEvent event) {
+        Entity entity = event.getEntity();
+        if (entity == null) return;
+
+        UUID ownerId = ownerOf(entity);
+        String spawnId = null;
+        if (ownerId == null) {
+            UUID parentId = MythicMobsHook.getParentUUID(entity);
+            if (parentId != null) {
+                ownerId = owners.get(parentId);
+                spawnId = ownerSpawns.get(parentId);
+            }
+        }
+        if (ownerId == null) {
+            Entity nearestOwned = nearestOwnedEntity(entity);
+            if (nearestOwned != null) {
+                ownerId = owners.get(nearestOwned.getUniqueId());
+                spawnId = ownerSpawns.get(nearestOwned.getUniqueId());
+            }
+        }
+        if (ownerId == null) return;
+
+        Player owner = Bukkit.getPlayer(ownerId);
+        if (owner == null) return;
+        claimEntity(entity, owner, spawnId, false);
+        claimNearbyVisualEntities(entity, owner, spawnId);
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -264,10 +355,7 @@ public final class ClientMobService implements Listener {
         if (ownerId != null) {
             Player owner = Bukkit.getPlayer(ownerId);
             if (owner != null) {
-                owners.put(mount.getUniqueId(), ownerId);
-                clientEntities.put(mount.getUniqueId(), mount);
-                entityIds.put(mount.getUniqueId(), mount.getEntityId());
-                hideFromOthers(mount, owner);
+                claimEntity(mount, owner, ownerSpawns.get(passenger.getUniqueId()), false);
             }
         }
     }
@@ -360,7 +448,55 @@ public final class ClientMobService implements Listener {
         owners.remove(entityId);
         ownerSpawns.remove(entityId);
         clientEntities.remove(entityId);
-        entityIds.remove(entityId);
+        Integer packetEntityId = entityIds.remove(entityId);
+        if (packetEntityId != null) packetEntityOwners.remove(packetEntityId);
+    }
+
+    private void claimEntity(Entity entity, Player viewer, String spawnId, boolean hideArmorStandCarrier) {
+        entity.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, viewer.getUniqueId().toString());
+        if (spawnId != null && !spawnId.isBlank()) {
+            entity.getPersistentDataContainer().set(spawnKey, PersistentDataType.STRING, spawnId);
+            ownerSpawns.put(entity.getUniqueId(), spawnId);
+        }
+
+        owners.put(entity.getUniqueId(), viewer.getUniqueId());
+        clientEntities.put(entity.getUniqueId(), entity);
+        entityIds.put(entity.getUniqueId(), entity.getEntityId());
+        claimPacketEntityIds(List.of(entity.getEntityId()), viewer);
+        if (hideArmorStandCarrier && entity instanceof ArmorStand armorStand) {
+            armorStand.setVisible(false);
+            armorStand.setCollidable(false);
+            armorStand.setSilent(true);
+        }
+        if (entity instanceof LivingEntity living) {
+            living.setRemoveWhenFarAway(false);
+        }
+        if (entity instanceof Mob mob) {
+            mob.setTarget(viewer);
+        }
+        hideFromOthers(entity, viewer);
+    }
+
+    private void claimNearbyVisualEntities(Entity source, Player viewer, String spawnId) {
+        for (Entity nearby : source.getNearbyEntities(3.0D, 3.0D, 3.0D)) {
+            if (nearby.getUniqueId().equals(source.getUniqueId())) continue;
+            if (!VISUAL_ENTITY_TYPES.contains(nearby.getType())) continue;
+            claimEntity(nearby, viewer, spawnId, false);
+        }
+    }
+
+    private Entity nearestOwnedEntity(Entity entity) {
+        Entity nearest = null;
+        double bestDistance = VISUAL_ENTITY_RADIUS_SQUARED;
+        for (Entity owned : clientEntities.values()) {
+            if (owned == null || !owned.isValid() || owned.getWorld() != entity.getWorld()) continue;
+            double distance = owned.getLocation().distanceSquared(entity.getLocation());
+            if (distance <= bestDistance) {
+                nearest = owned;
+                bestDistance = distance;
+            }
+        }
+        return nearest;
     }
 
     private Location randomLocation(Location center, double radius) {

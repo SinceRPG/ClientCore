@@ -22,6 +22,9 @@ dependencies:
     MythicMobs:
       load: BEFORE
       required: false
+    ModelEngine:
+      load: BEFORE
+      required: false
     FancyNpcs:
       load: BEFORE
       required: false

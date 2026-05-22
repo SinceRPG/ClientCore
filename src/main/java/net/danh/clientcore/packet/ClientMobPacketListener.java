@@ -29,13 +29,22 @@ public class ClientMobPacketListener extends PacketListenerAbstract implements P
         if (!(event.getPlayer() instanceof Player player)) return;
 
         Map<UUID, UUID> owners = mobService.getOwners();
-        if (owners.isEmpty()) return;
+        Map<Integer, UUID> packetOwners = mobService.getPacketEntityOwners();
+        if (owners.isEmpty() && packetOwners.isEmpty()) return;
 
         Map<UUID, Entity> entities = mobService.getClientEntities();
 
         if (event.getPacketType() == PacketType.Play.Server.SPAWN_ENTITY) {
             WrapperPlayServerSpawnEntity spawnEntity = new WrapperPlayServerSpawnEntity(event);
-            if (spawnEntity.getEntityType() == EntityTypes.ARMOR_STAND || spawnEntity.getEntityType() == EntityTypes.TEXT_DISPLAY) {
+            UUID packetOwner = packetOwners.get(spawnEntity.getEntityId());
+            if (packetOwner != null && !packetOwner.equals(player.getUniqueId())) {
+                event.setCancelled(true);
+                return;
+            }
+            if (spawnEntity.getEntityType() == EntityTypes.ARMOR_STAND || spawnEntity.getEntityType() == EntityTypes.TEXT_DISPLAY
+                    || spawnEntity.getEntityType() == EntityTypes.ITEM_DISPLAY || spawnEntity.getEntityType() == EntityTypes.BLOCK_DISPLAY
+                    || spawnEntity.getEntityType() == EntityTypes.INTERACTION || spawnEntity.getEntityType() == EntityTypes.SLIME
+                    || spawnEntity.getEntityType() == EntityTypes.MAGMA_CUBE) {
                 if (shouldHide(player, spawnEntity.getPosition().getX(), spawnEntity.getPosition().getY(), spawnEntity.getPosition().getZ(), owners, entities)) {
                     event.setCancelled(true);
                 }
@@ -52,6 +61,11 @@ public class ClientMobPacketListener extends PacketListenerAbstract implements P
             }
         } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_SOUND_EFFECT) {
             WrapperPlayServerEntitySoundEffect sound = new WrapperPlayServerEntitySoundEffect(event);
+            UUID packetOwner = packetOwners.get(sound.getEntityId());
+            if (packetOwner != null && !packetOwner.equals(player.getUniqueId())) {
+                event.setCancelled(true);
+                return;
+            }
             Entity source = getEntityById(sound.getEntityId(), entities);
             if (source != null && !owners.getOrDefault(source.getUniqueId(), player.getUniqueId()).equals(player.getUniqueId())) {
                 event.setCancelled(true);

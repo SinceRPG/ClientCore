@@ -4,11 +4,14 @@ title: Drops Configuration
 nav_order: 5
 ---
 
-# Ground Drops (`drops.yml`)
+# Ground Drops (`drops/drops.yml`)
 
 Spawn client-sided dropped items on the ground. Only the intended player can see or pick up these items.
 
 ## Example Configuration
+
+All `.yml` files inside `drops/` are loaded and merged. A file can use the full `client-drops:` root, a `rules:` root,
+or direct rule IDs.
 
 ```yaml
 rules:

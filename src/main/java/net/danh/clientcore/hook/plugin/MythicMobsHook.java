@@ -34,4 +34,12 @@ public final class MythicMobsHook {
         }
         return null;
     }
+
+    public static boolean isMythicMob(Entity entity) {
+        try {
+            return MythicBukkit.inst().getMobManager().getActiveMob(entity.getUniqueId()).isPresent();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
 }

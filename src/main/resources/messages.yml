@@ -20,6 +20,7 @@ commands:
   
   # Mob and spawn management
   mob-spawned: "<green>Spawned {amount} client mob(s)."
+  mythic-mob-spawned: "<green>Spawned {amount} MythicMob(s) <white>{mob}</white> level {level} for {player}."
   spawn-set: "<green>Set spawn <white>{id}</white> at your location."
   spawn-deleted: "<green>Deleted spawn {id}."
   spawn-not-found: "<red>Spawn not found: {id}"
