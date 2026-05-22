@@ -3,7 +3,9 @@ package net.danh.clientcore.block;
 import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.player.DiggingAction;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerBlockPlacement;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerDigging;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
@@ -19,6 +21,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
@@ -94,7 +98,25 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
     @Override
     public void onPacketReceive(PacketReceiveEvent event) {
-        if (!enabled || event.getPacketType() != com.github.retrooper.packetevents.protocol.packettype.PacketType.Play.Client.PLAYER_DIGGING)
+        if (!enabled)
+            return;
+
+        if (event.getPacketType() == PacketType.Play.Client.PLAYER_BLOCK_PLACEMENT) {
+            WrapperPlayClientPlayerBlockPlacement placement = new WrapperPlayClientPlayerBlockPlacement(event);
+            Player player = (Player) event.getPlayer();
+            if (player == null || !player.isOnline()) return;
+
+            int x = placement.getBlockPosition().getX();
+            int y = placement.getBlockPosition().getY();
+            int z = placement.getBlockPosition().getZ();
+            if (!isVisibleCoordinate(player.getUniqueId(), x, y, z)) return;
+
+            event.setCancelled(true);
+            scheduler.entity(player, () -> resendVisibleBlock(player, x, y, z));
+            return;
+        }
+
+        if (event.getPacketType() != PacketType.Play.Client.PLAYER_DIGGING)
             return;
 
         WrapperPlayClientPlayerDigging digging = new WrapperPlayClientPlayerDigging(event);
@@ -161,6 +183,20 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             }
             active.remove(rule.id());
         });
+    }
+
+    @EventHandler
+    public void onInteract(PlayerInteractEvent event) {
+        if (!enabled || event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
+        Player player = event.getPlayer();
+        Optional<BlockMatch> match = ruleForLocation(player,
+                event.getClickedBlock().getX(),
+                event.getClickedBlock().getY(),
+                event.getClickedBlock().getZ());
+        if (match.isEmpty() || !isVisible(player, match.get().rule())) return;
+
+        event.setCancelled(true);
+        sendCurrentVisualBlock(player, match.get());
     }
 
     @EventHandler
@@ -251,6 +287,37 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             packets.sendBlock(player, location, data);
             support.sendBlock(player, location, data);
         });
+    }
+
+    private boolean isVisible(Player player, BlockRule rule) {
+        Map<String, Location> visible = visibleBlocks.get(player.getUniqueId());
+        return visible != null && visible.containsKey(rule.id());
+    }
+
+    private boolean isVisibleCoordinate(UUID playerId, int x, int y, int z) {
+        Map<String, Location> visible = visibleBlocks.get(playerId);
+        if (visible == null || visible.isEmpty()) return false;
+        for (Location location : visible.values()) {
+            if (location.getBlockX() == x && location.getBlockY() == y && location.getBlockZ() == z) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void resendVisibleBlock(Player player, int x, int y, int z) {
+        Optional<BlockMatch> match = ruleForLocation(player, x, y, z);
+        match.ifPresent(thisMatch -> {
+            if (isVisible(player, thisMatch.rule())) {
+                sendCurrentVisualBlock(player, thisMatch);
+            }
+        });
+    }
+
+    private void sendCurrentVisualBlock(Player player, BlockMatch match) {
+        Set<String> activeRegen = regenerating.getOrDefault(player.getUniqueId(), Set.of());
+        String blockMaterial = activeRegen.contains(match.rule().id()) ? match.variant().cooldownBlock() : match.variant().readyBlock();
+        sendConfiguredBlock(player, match.rule().location(), blockMaterial);
     }
 
     private Optional<BlockMatch> ruleForLocation(Player player, int x, int y, int z) {

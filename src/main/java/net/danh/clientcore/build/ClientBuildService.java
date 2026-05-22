@@ -1,5 +1,10 @@
 package net.danh.clientcore.build;
 
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketListenerAbstract;
+import com.github.retrooper.packetevents.event.PacketReceiveEvent;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerBlockPlacement;
 import net.danh.clientcore.block.ClientBlockSupportService;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
@@ -18,8 +23,10 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
@@ -29,7 +36,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class ClientBuildService implements Listener {
+public final class ClientBuildService extends PacketListenerAbstract implements Listener {
     private final Plugin plugin;
     private final ConfigManager configManager;
     private final FoliaScheduler scheduler;
@@ -59,6 +66,24 @@ public final class ClientBuildService implements Listener {
         this.conditions = conditions;
         this.generatedFolder = new File(plugin.getDataFolder(), "builds/generated");
         this.playersFile = new File(plugin.getDataFolder(), "client-build-players.yml");
+        PacketEvents.getAPI().getEventManager().registerListener(this);
+    }
+
+    @Override
+    public void onPacketReceive(PacketReceiveEvent event) {
+        if (!enabled || event.getPacketType() != PacketType.Play.Client.PLAYER_BLOCK_PLACEMENT) return;
+
+        WrapperPlayClientPlayerBlockPlacement placement = new WrapperPlayClientPlayerBlockPlacement(event);
+        Player player = (Player) event.getPlayer();
+        if (player == null || !player.isOnline()) return;
+
+        int x = placement.getBlockPosition().getX();
+        int y = placement.getBlockPosition().getY();
+        int z = placement.getBlockPosition().getZ();
+        if (!hasVisibleCoordinate(player.getUniqueId(), x, y, z)) return;
+
+        event.setCancelled(true);
+        scheduler.entity(player, () -> resendVisibleBlock(player, x, y, z));
     }
 
     public void reload() {
@@ -189,6 +214,21 @@ public final class ClientBuildService implements Listener {
 
     public Set<String> buildNames() {
         return Set.copyOf(builds.keySet());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onInteract(PlayerInteractEvent event) {
+        if (!enabled || event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
+
+        Player player = event.getPlayer();
+        Location location = event.getClickedBlock().getLocation();
+        BlockKey key = BlockKey.from(location);
+        BlockData visualData = visibleBlockData(player, key);
+        if (visualData == null) return;
+
+        event.setCancelled(true);
+        packets.sendBlock(player, location, visualData);
+        support.sendBlock(player, location, visualData);
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -324,6 +364,44 @@ public final class ClientBuildService implements Listener {
 
     private boolean canSee(Player player, ClientBuildRule build) {
         return conditions.evaluate(player, build.condition(), build.conditions()).passed();
+    }
+
+    private BlockData visibleBlockData(Player player, BlockKey key) {
+        Set<String> visible = visibleBuilds.get(player.getUniqueId());
+        if (visible == null || visible.isEmpty()) return null;
+        for (String buildName : visible) {
+            ClientBuildRule build = builds.get(buildName);
+            if (build == null) continue;
+            BlockData data = build.blocks().get(key);
+            if (data != null) return data;
+        }
+        return null;
+    }
+
+    private boolean hasVisibleCoordinate(UUID playerId, int x, int y, int z) {
+        Set<String> visible = visibleBuilds.get(playerId);
+        if (visible == null || visible.isEmpty()) return false;
+        for (String buildName : visible) {
+            ClientBuildRule build = builds.get(buildName);
+            if (build == null) continue;
+            for (BlockKey key : build.blocks().keySet()) {
+                if (key.x() == x && key.y() == y && key.z() == z) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void resendVisibleBlock(Player player, int x, int y, int z) {
+        World world = player.getWorld();
+        BlockKey key = new BlockKey(world.getName(), x, y, z);
+        BlockData visualData = visibleBlockData(player, key);
+        if (visualData == null) return;
+
+        Location location = new Location(world, x, y, z);
+        packets.sendBlock(player, location, visualData);
+        support.sendBlock(player, location, visualData);
     }
 
     private void sendRealBlockToAll(Location location) {
