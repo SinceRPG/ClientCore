@@ -80,6 +80,10 @@ public final class ConfigManager {
         ensureResourceFile(defaultFileName);
 
         YamlConfiguration aggregate = new YamlConfiguration();
+        File legacy = new File(plugin.getDataFolder(), legacyFileName);
+        if (legacy.exists()) {
+            mergeFeatureConfig(aggregate, YamlConfiguration.loadConfiguration(legacy), rootPath);
+        }
         for (File file : yamlFiles(folderName)) {
             YamlConfiguration source = YamlConfiguration.loadConfiguration(file);
             mergeFeatureConfig(aggregate, source, rootPath);
