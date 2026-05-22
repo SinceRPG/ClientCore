@@ -23,14 +23,14 @@ client-loot-chests:
       # Title for the UI inventory window that opens upon interaction (MiniMessage supported).
       gui-title: "<gold>Reward Chest"
       # Legacy condition (can be left blank if using the conditions list)
-      condition: "%mmocore_level% >= 2"
+      condition: "%mmocore_level%;>=;2"
       conditions: [ ]
 
       # Cooldown rules read top-to-bottom. The logic selects the duration of the FIRST condition that passes.
       cooldowns:
-        - condition: "%mmocore_level% >= 10"
+        - condition: "%mmocore_level%;>=;10"
           duration-ticks: 6000 # 5 minutes cooldown for high level players
-        - condition: "%luckperms_has_permission_vip% == true"
+        - condition: "%luckperms_has_permission_vip%;==;true"
           duration-ticks: 3000 # 2.5 minutes cooldown for VIP players
         - condition: ""
           duration-ticks: 12000 # 10 minutes default cooldown for everyone else
@@ -56,7 +56,7 @@ client-loot-chests:
       condition: ""
       # All conditions must be met for the chest to appear.
       conditions:
-        - "%statistic_time_played% >= 3600" # Must have played for at least 1 hour
+        - "%statistic_time_played%;>=;3600" # Must have played for at least 1 hour
       cooldowns:
         - condition: ""
           duration-ticks: 86400 # 1 hour default cooldown (assuming 20 ticks/sec)

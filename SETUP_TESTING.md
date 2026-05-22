@@ -137,13 +137,13 @@ Luck items are configured under `luck.item` and support the same vanilla ItemMet
 
 ## Conditions and weighted variants
 
-Legacy one-line conditions still work:
+Single conditions use semicolon syntax:
 
 ```yaml
-condition: "%mmocore_level% >= 2 & %mmocore_level% <= 5"
+condition: "%mmocore_level%;>=;2"
 ```
 
-New multi-condition format:
+Multi-condition format:
 
 ```yaml
 conditions:

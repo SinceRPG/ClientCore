@@ -60,21 +60,24 @@ the plugin:
 
 📚 **[View the Official ClientCore Wiki Here](https://SinceRPG.github.io/ClientCore/)**
 
-### Quick Links to Specific Configs:
+### Quick Links to Specific Docs:
 
-- [Main Config (`config.yml`)](https://<YOUR_GITHUB_USERNAME>.github.io/ClientCore/config.html)
-- [Block Regen Rules](https://<YOUR_GITHUB_USERNAME>.github.io/ClientCore/blocks.html)
-- [Loot Chests](https://<YOUR_GITHUB_USERNAME>.github.io/ClientCore/chests.html)
-- [Ground Drops](https://<YOUR_GITHUB_USERNAME>.github.io/ClientCore/drops.html)
-- [Mob Spawns](https://<YOUR_GITHUB_USERNAME>.github.io/ClientCore/mobs.html)
-- [NPC Spawns](https://<YOUR_GITHUB_USERNAME>.github.io/ClientCore/npcs.html)
+- [Main Config (`config.yml`)](https://SinceRPG.github.io/ClientCore/config.html)
+- [Configuration Layout](https://SinceRPG.github.io/ClientCore/configuration-layout.html)
+- [Conditions](https://SinceRPG.github.io/ClientCore/conditions.html)
+- [Commands](https://SinceRPG.github.io/ClientCore/commands.html)
+- [Block Regen Rules](https://SinceRPG.github.io/ClientCore/blocks.html)
+- [Loot Chests](https://SinceRPG.github.io/ClientCore/chests.html)
+- [Ground Drops](https://SinceRPG.github.io/ClientCore/drops.html)
+- [Mob Spawns](https://SinceRPG.github.io/ClientCore/mobs.html)
+- [NPC Spawns](https://SinceRPG.github.io/ClientCore/npcs.html)
 
 ## 🔌 Supported Integrations & Hooks
 
 ClientCore truly shines when hooked into your server's broader ecosystem. We natively support:
 
 - **[PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI):** Absolutely required for the conditional
-  engine (e.g., checking `%mmocore_level% >= 5`).
+  engine (e.g., checking `%mmocore_level%;>=;5`).
 - **[WorldGuard](https://dev.bukkit.org/projects/worldguard):** Introduces custom flags like `clientcore-regen` to
   protect specific regions.
 - **[MythicMobs](https://mythiccraft.io/):** Use your custom MythicMobs as client-sided bosses or NPCs!

@@ -1,0 +1,100 @@
+---
+layout: default
+title: Troubleshooting
+nav_order: 12
+---
+
+# Troubleshooting
+
+## `/clientcore status` Shows 0 Rules
+
+Check folder paths:
+
+```text
+plugins/ClientCore/blocks/*.yml
+plugins/ClientCore/mobs/*.yml
+plugins/ClientCore/npcs/*.yml
+plugins/ClientCore/drops/*.yml
+plugins/ClientCore/chests/*.yml
+```
+
+Files in subfolders are also loaded.
+
+Check your file style. This is valid:
+
+```yaml
+my_rule:
+  enabled: true
+```
+
+This is also valid:
+
+```yaml
+rules:
+  my_rule:
+    enabled: true
+```
+
+And full root style is valid:
+
+```yaml
+block-regen:
+  rules:
+    my_rule:
+      enabled: true
+```
+
+## Conditions Do Not Pass
+
+Temporarily disable conditions:
+
+```yaml
+condition: ""
+conditions: []
+```
+
+If the rule appears, the issue is PlaceholderAPI or the condition expression.
+
+Common checks:
+
+- PlaceholderAPI is installed.
+- The placeholder expansion is installed.
+- The placeholder returns a number when using numeric comparisons.
+- Non-empty conditions use semicolon syntax such as `%placeholder%;>=;value`.
+
+## Block Regen Does Not Appear
+
+- Run `/clientcore status` and confirm block count.
+- Stand near the configured location.
+- Run `/clientcore refresh`.
+- Check `block-regen.enabled`.
+- Check `refresh-radius`.
+- Check the world name.
+- Remove WorldGuard flag restrictions while testing.
+
+## MythicMob Spawns But Model Is Visible To Everyone
+
+- Confirm `hooks.modelengine: true`.
+- Confirm ModelEngine is installed and enabled.
+- Confirm the ModelEngine version matches the compiled API version.
+- Test with `/clientcore mythicspawn self <mob>`.
+
+MythicMobs skills are still server-side. If a skill damages `@PlayersNearOrigin`, MythicMobs can still target players
+unless the skill config is written to target only the owner or your server logic cancels it.
+
+## Rewards Do Not Give Items
+
+- Check the `drops:` list indentation.
+- For MMOItems, confirm `hooks.mmoitems: true`.
+- Confirm the MMOItems type and ID exist.
+- Add a vanilla `material` fallback.
+
+## Config Changes Do Not Apply
+
+Run:
+
+```text
+/clientcore reload
+```
+
+Some third-party plugin changes may require reloading that plugin or restarting the server.

@@ -19,7 +19,7 @@ client-mobs:
       # If MythicMobs is disabled or the mob cannot be found, it will spawn this vanilla entity.
       fallback-entity: ZOMBIE
       # Required player conditions for this mob to appear.
-      condition: "%mmocore_level% <= 1"
+      condition: "%mmocore_level%;<=;1"
       conditions: [ ]
       # Priority determines which mob spawns if multiple rules apply to the same point.
       # Higher numbers have higher priority.
@@ -36,7 +36,7 @@ client-mobs:
       fallback-entity: WITHER
       condition: ""
       conditions:
-        - "%mmocore_level% >= 50"
+        - "%mmocore_level%;>=;50"
       priority: 200
       health: 1000.0
       damage: 50.0

@@ -24,7 +24,7 @@ client-npcs:
       # The floating name above the NPC. Supports placeholders.
       name: "<yellow>Server Guide"
       # The player must meet this condition to see the NPC.
-      condition: "%mmocore_level% <= 5"
+      condition: "%mmocore_level%;<=;5"
       conditions: [ ]
       location:
         world: world
@@ -43,7 +43,7 @@ client-npcs:
       name: "<gold>VIP Quests"
       condition: ""
       conditions:
-        - "%luckperms_has_permission_vip% == true"
+        - "%luckperms_has_permission_vip%;==;true"
       location:
         world: hub
         x: -20.5

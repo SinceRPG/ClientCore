@@ -33,7 +33,7 @@ block-regen:
       # The fake block sent to the client while the node is regenerating.
       cooldown-block: BEDROCK
       # Legacy single placeholder condition (Use 'conditions' list for multiple)
-      condition: "%mmocore_level% <= 1"
+      condition: "%mmocore_level%;<=;1"
       conditions: [ ]
       # The amount of time in ticks it takes for the client-side block to visually "respawn".
       regen-ticks: 80
@@ -56,8 +56,8 @@ block-regen:
       # Multiple conditions using the 'conditions' list. All must be true.
       condition: ""
       conditions:
-        - "%luckperms_has_permission_vip% == true"
-        - "%player_health% >= 10"
+        - "%luckperms_has_permission_vip%;==;true"
+        - "%player_health%;>=;10"
       regen-ticks: 1200 # 60 seconds cooldown
       drops:
         - type: vanilla

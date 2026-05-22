@@ -15,11 +15,11 @@ client-drops:
     # Cooldown varies based on VIP status.
     rare_tutorial_stone:
       enabled: true
-      condition: "%mmocore_level% >= 1"
+      condition: "%mmocore_level%;>=;1"
       conditions: [ ]
       # Cooldowns read top-to-bottom. The logic selects the duration of the FIRST condition that passes.
       cooldowns:
-        - condition: "%luckperms_has_permission_vip% == true"
+        - condition: "%luckperms_has_permission_vip%;==;true"
           duration-ticks: 1200 # VIPs only have to wait 1 minute (1200 ticks) for this item to respawn
         - condition: "" # A blank condition string acts as a universal fallback.
           duration-ticks: 6000 # Default players wait 5 minutes (6000 ticks)

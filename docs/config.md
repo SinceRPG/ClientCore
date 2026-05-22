@@ -1,16 +1,17 @@
 ---
 layout: default
 title: Main Configuration
-nav_order: 2
+nav_order: 3
 ---
 
-# Main Configuration (`config.yml`)
+# Main Configuration
 
-The main configuration file controls database settings, plugin hooks, and the Luck system.
+`config.yml` contains global settings, SQL storage, the Luck system, and hook toggles. Unlike feature configs, it stays
+at the root of `plugins/ClientCore/`.
 
-## Storage Settings
+## Storage
 
-You can choose between `sqlite` (for single servers) and `mysql` (for proxy networks).
+Default SQLite setup:
 
 ```yaml
 storage:
@@ -19,20 +20,57 @@ storage:
     file: clientcore.db
 ```
 
-## Luck System
+MySQL setup:
 
-Luck increases a player's chance of rolling a rare variant of a block drop or mob spawn.
-Administrators can give out Luck Tokens via `/clientcore luck giveitem`.
-The base formula is:
-`finalWeight = baseWeight * (1 + min(maxBonus, luck * luckMultiplier / 100))`
+```yaml
+storage:
+  type: mysql
+  mysql:
+    host: localhost
+    port: 3306
+    database: clientcore
+    username: root
+    password: "password"
+```
 
-## Third-Party Hooks
+ClientCore stores player Luck data and mob spawn point data in SQL. Fixed mob spawn points are cached in memory while
+the server is running, so the spawn loop does not query SQL every tick.
 
-ClientCore seamlessly integrates with several other plugins:
+## Luck
 
-- **PlaceholderAPI:** For conditions in rules.
-- **WorldGuard:** For region-based logic.
-- **MMOItems / MythicMobs:** For custom items and custom entities.
-- **Citizens / FancyNpcs:** For NPC generation.
+Luck increases rare variant weights for block and mob variants marked with `rare: true`.
 
-If you don't use a plugin, simply set its hook to `false`.
+```yaml
+luck:
+  max-rare-weight-bonus-percent: 300.0
+```
+
+Formula:
+
+```text
+finalWeight = baseWeight * (1 + min(maxBonus, luck * luckMultiplier / 100))
+```
+
+Luck item settings live under `luck.item`. The item supports the same vanilla item metadata style used by rewards.
+
+## Hooks
+
+```yaml
+hooks:
+  placeholderapi: true
+  worldguard: true
+  mmoitems: true
+  mythicmobs: true
+  modelengine: true
+  citizens: true
+  fancynpcs: true
+```
+
+Set unused hooks to `false` if the plugin is not installed. ClientCore checks whether the plugin is actually enabled
+before using a hook, so leaving optional hooks enabled is usually safe.
+
+## Auto Update
+
+On load, ClientCore adds missing keys to `config.yml` and `messages.yml` only. Existing values are not reset.
+
+Feature folders are not auto-merged into one file. They are loaded as split YAML files and merged in memory.
