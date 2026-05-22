@@ -6,6 +6,7 @@ import io.lumine.mythic.bukkit.MythicBukkit;
 import io.lumine.mythic.core.mobs.ActiveMob;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +41,24 @@ public final class MythicMobsHook {
             return MythicBukkit.inst().getMobManager().getActiveMob(entity.getUniqueId()).isPresent();
         } catch (Exception ignored) {
             return false;
+        }
+    }
+
+    public static void setOwnerTarget(Entity entity, Player owner) {
+        try {
+            ActiveMob am = MythicBukkit.inst().getMobManager().getActiveMob(entity.getUniqueId()).orElse(null);
+            if (am == null) return;
+            var adaptedOwner = BukkitAdapter.adapt(owner);
+            am.setOwnerUUID(owner.getUniqueId());
+            am.resetTarget();
+            am.voidTargetChange();
+            am.setTarget(adaptedOwner);
+            if (am.hasThreatTable()) {
+                am.getThreatTable().dropCombat();
+                am.getThreatTable().threatSet(adaptedOwner, Double.MAX_VALUE);
+                am.getThreatTable().targetThreateningEntity(adaptedOwner);
+            }
+        } catch (Exception ignored) {
         }
     }
 }
