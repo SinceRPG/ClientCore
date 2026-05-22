@@ -1,6 +1,8 @@
 title: ClientCore Documentation
 description: Official Wiki and Documentation for the ClientCore Plugin.
-theme: jekyll-theme-cayman
+remote_theme: just-the-docs/just-the-docs
+
+color_scheme: dark
 
 markdown: kramdown
 plugins:

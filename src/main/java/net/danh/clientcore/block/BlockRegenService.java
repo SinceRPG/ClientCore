@@ -13,10 +13,7 @@ import net.danh.clientcore.item.ConfigItemBuilder;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.util.FoliaScheduler;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -110,7 +107,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (optionalMatch.isEmpty()) return;
 
         // Bỏ qua START_DIGGING cho khối có thời gian phá, trừ khi ở chế độ sáng tạo
-        if (digging.getAction() == DiggingAction.START_DIGGING && player.getGameMode() != org.bukkit.GameMode.CREATIVE) {
+        if (digging.getAction() == DiggingAction.START_DIGGING && player.getGameMode() != GameMode.CREATIVE) {
             return;
         }
 

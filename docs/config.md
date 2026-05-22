@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Main Configuration
+nav_order: 2
 ---
 
 # Main Configuration (`config.yml`)

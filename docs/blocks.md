@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Blocks Configuration
+nav_order: 3
 ---
 
 # Blocks Regeneration (`blocks.yml`)

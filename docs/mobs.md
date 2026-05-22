@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Mobs Configuration
+nav_order: 7
 ---
 
 # Client-Side Mobs (`mobs.yml`)
@@ -16,7 +17,7 @@ rules:
     enabled: true
     mythicmob-id: WitherKing # Requires MythicMobs hook
     fallback-entity: WITHER
-    conditions: 
+    conditions:
       - "%mmocore_level% >= 50"
     priority: 200
     health: 1000.0

@@ -10,14 +10,18 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class SpawnPointStore {
     private final Plugin plugin;
     private final ConfigManager configManager;
     private final File file;
     private final StorageService storage;
-    private final Map<String, SpawnPoint> points = new LinkedHashMap<>();
+    private final Map<String, SpawnPoint> points = new ConcurrentHashMap<>();
 
     public SpawnPointStore(Plugin plugin, ConfigManager configManager, StorageService storage) {
         this.plugin = plugin;

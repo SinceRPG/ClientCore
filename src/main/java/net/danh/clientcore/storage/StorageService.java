@@ -11,6 +11,7 @@ import java.io.File;
 import java.sql.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -297,7 +298,7 @@ public final class StorageService implements AutoCloseable {
 
     public CompletableFuture<Map<String, Long>> loadCooldowns(UUID uuid) {
         return CompletableFuture.supplyAsync(() -> {
-            Map<String, Long> map = new java.util.concurrent.ConcurrentHashMap<>();
+            Map<String, Long> map = new ConcurrentHashMap<>();
             try (Connection connection = dataSource.getConnection();
                  PreparedStatement statement = connection.prepareStatement("SELECT category, rule_id, expires_at FROM clientcore_cooldowns WHERE uuid=?")) {
                 statement.setString(1, uuid.toString());

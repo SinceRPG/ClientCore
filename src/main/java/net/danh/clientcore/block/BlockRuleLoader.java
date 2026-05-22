@@ -6,6 +6,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 final class BlockRuleLoader {
     private final Plugin plugin;
@@ -20,7 +21,7 @@ final class BlockRuleLoader {
         List<BlockRule> rules = new ArrayList<>();
         Set<String> blockNames = Registry.BLOCK.keyStream()
                 .map(key -> key.getKey().toUpperCase(Locale.ROOT))
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
         ConfigurationSection root = config.getConfigurationSection("block-regen.rules");
         if (root == null) {
             return rules;

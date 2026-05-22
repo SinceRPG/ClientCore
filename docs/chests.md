@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Chests Configuration
+nav_order: 4
 ---
 
 # Loot Chests (`chests.yml`)

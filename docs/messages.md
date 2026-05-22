@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Messages Configuration
+nav_order: 6
 ---
 
 # Messages & Language (`messages.yml`)

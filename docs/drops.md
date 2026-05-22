@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Drops Configuration
+nav_order: 5
 ---
 
 # Ground Drops (`drops.yml`)

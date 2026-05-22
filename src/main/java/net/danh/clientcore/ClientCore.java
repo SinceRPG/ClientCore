@@ -1,5 +1,7 @@
 package net.danh.clientcore;
 
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import net.danh.clientcore.block.BlockRegenService;
 import net.danh.clientcore.chest.ClientLootChestService;
 import net.danh.clientcore.command.ClientCoreCommands;
@@ -12,6 +14,7 @@ import net.danh.clientcore.luck.LuckItemService;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.mob.ClientMobService;
 import net.danh.clientcore.npc.ClientNpcService;
+import net.danh.clientcore.packet.ClientMobPacketListener;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.storage.CooldownManager;
 import net.danh.clientcore.storage.StorageService;
@@ -77,6 +80,8 @@ public final class ClientCore extends JavaPlugin {
         clientNpcService.reload();
         clientDropService.reload();
         clientLootChestService.reload();
+
+        PacketEvents.getAPI().getEventManager().registerListener(new ClientMobPacketListener(clientMobService), PacketListenerPriority.NORMAL);
 
         getServer().getPluginManager().registerEvents(cooldownManager, this);
         getServer().getPluginManager().registerEvents(blockRegenService, this);

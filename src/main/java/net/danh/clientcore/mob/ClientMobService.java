@@ -4,6 +4,7 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
+import net.danh.clientcore.hook.plugin.MythicMobsHook;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.storage.StorageService;
@@ -22,6 +23,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntitySpawnEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -173,6 +175,14 @@ public final class ClientMobService implements Listener {
         spawns.save();
     }
 
+    public Map<UUID, UUID> getOwners() {
+        return owners;
+    }
+
+    public Map<UUID, Entity> getClientEntities() {
+        return clientEntities;
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
@@ -222,6 +232,44 @@ public final class ClientMobService implements Listener {
     @EventHandler
     public void onDeath(EntityDeathEvent event) {
         if (ownerOf(event.getEntity()) != null) forget(event.getEntity().getUniqueId());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onEntitySpawn(EntitySpawnEvent event) {
+        if (!configManager.getMain().getBoolean("hooks.mythicmobs", false)) return;
+        Entity entity = event.getEntity();
+
+        entity.getScheduler().execute(plugin, () -> {
+            if (!entity.isValid()) return;
+            UUID parentId = MythicMobsHook.getParentUUID(entity);
+            if (parentId != null && owners.containsKey(parentId)) {
+                UUID ownerId = owners.get(parentId);
+                Player owner = Bukkit.getPlayer(ownerId);
+                if (owner != null) {
+                    owners.put(entity.getUniqueId(), ownerId);
+                    clientEntities.put(entity.getUniqueId(), entity);
+                    entityIds.put(entity.getUniqueId(), entity.getEntityId());
+                    hideFromOthers(entity, owner);
+                }
+            }
+        }, null, 2L);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityMount(org.bukkit.event.entity.EntityMountEvent event) {
+        Entity mount = event.getMount();
+        Entity passenger = event.getEntity();
+
+        UUID ownerId = ownerOf(passenger);
+        if (ownerId != null) {
+            Player owner = Bukkit.getPlayer(ownerId);
+            if (owner != null) {
+                owners.put(mount.getUniqueId(), ownerId);
+                clientEntities.put(mount.getUniqueId(), mount);
+                entityIds.put(mount.getUniqueId(), mount.getEntityId());
+                hideFromOthers(mount, owner);
+            }
+        }
     }
 
     private void applyStats(LivingEntity entity, MobVariant variant) {

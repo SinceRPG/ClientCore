@@ -1,6 +1,7 @@
 ---
 layout: default
 title: NPCs Configuration
+nav_order: 8
 ---
 
 # Client-Side NPCs (`npcs.yml`)
