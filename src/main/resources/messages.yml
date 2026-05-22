@@ -1,18 +1,24 @@
 # ==============================================================================
 # ClientCore Language & Messages Configuration
 # MiniMessage format is fully supported (e.g., <red>, <bold>, <gradient>)
+# You can customize every message sent to players and the console here.
 # ==============================================================================
 
 prefix: "<dark_gray>[<aqua>ClientCore</aqua>]<reset> "
 
 commands:
+  # General command messages
   only-players: "<red>Only players can execute this command."
   player-not-found: "<red>Player not found or is offline."
   reloaded: "<green>ClientCore configurations reloaded successfully."
   status: "<aqua>ClientCore</aqua> <gray>Blocks: {blocks} | Mobs: {mobs}</gray>"
+  
+  # Action messages
   blocks-refreshed: "<green>Refreshed client-side blocks around you."
   visibility-hidden: "<green>You are now hidden from other players."
   visibility-visible: "<green>You are now visible to other players."
+  
+  # Mob and spawn management
   mob-spawned: "<green>Spawned {amount} client mob(s)."
   spawn-set: "<green>Set spawn <white>{id}</white> at your location."
   spawn-deleted: "<green>Deleted spawn {id}."
@@ -21,7 +27,11 @@ commands:
   spawn-list-item: "<aqua>{id}</aqua> <gray>Rule: {rule} | Amount: {amount} | Radius: {radius}</gray>"
   spawn-updated: "<green>Updated {id}: {attribute} = {value}."
   spawn-invalid-attribute: "<red>Invalid attribute or value provided."
+  
+  # Admin tools
   debug-set: "<green>Debug mode set to {state}."
+  
+  # Luck system messages
   luck-profile: "<aqua>Luck</aqua><gray>: <white>{luck}</white></gray>"
   luck-set: "<green>Set {player}'s luck to {luck}."
   luck-added: "<green>Added luck. {player} now has {luck}."
@@ -33,9 +43,12 @@ commands:
   luck-top-empty: "<yellow>No luck records found."
   luck-top-header: "<aqua>--- Luck Top ---</aqua>"
   luck-top-row: "<gray>#{rank} <white>{player}</white> <aqua>{luck}</aqua></gray>"
+  
+  # Chest interactions
   chest-cooldown: "<red>This chest is currently empty. Check back later!"
 
 console:
+  # Console specific logging messages
   enabled: "ClientCore enabled for Paper/Folia {version}"
   migrated-spawns: "Migrated {count} spawn point(s) from spawns.yml into SQL storage."
   wg-flag-exists: "WorldGuard flag clientcore-regen already exists, using the registered flag."

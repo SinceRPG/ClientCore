@@ -11,11 +11,9 @@ import net.danh.clientcore.hook.plugin.CitizensHook;
 import net.danh.clientcore.hook.plugin.FancyNpcsHook;
 import net.danh.clientcore.hook.plugin.MMOItemsHook;
 import net.danh.clientcore.hook.plugin.MythicMobsHook;
-import net.danh.clientcore.npc.ClientNpc;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
@@ -96,14 +94,14 @@ public final class HookRegistry {
         return MythicMobsHook.spawn(mobId, location, level);
     }
 
-    public ClientNpc spawnFancyNpc(String name, Location loc, EntityType type, Player viewer) {
-        if (!fancyNpcs) return null;
-        return FancyNpcsHook.spawn(plugin, config, name, loc, type, viewer);
+    public void toggleFancyNpcVisibility(Player player, String npcId, boolean visible) {
+        if (!hasFancyNpcs()) return;
+        FancyNpcsHook.toggleVisibility(plugin, npcId, player, visible);
     }
 
-    public Entity spawnCitizensNpc(String name, Location loc, EntityType type) {
-        if (!citizens) return null;
-        return CitizensHook.spawn(plugin, config, name, loc, type);
+    public void toggleCitizensNpcVisibility(Player player, String npcId, boolean visible) {
+        if (!hasCitizens()) return;
+        CitizensHook.toggleVisibility(plugin, npcId, player, visible);
     }
 
     public List<String> mythicMobIds() {

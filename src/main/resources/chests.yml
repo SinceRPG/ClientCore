@@ -3,6 +3,7 @@
 # Sends fake chest blocks to the client. Upon right-clicking the block,
 # a custom virtual inventory containing the defined loot is opened.
 # Supports cooldowns to prevent infinite looting.
+# This file provides comprehensive examples of different loot chest setups.
 # ==============================================================================
 
 client-loot-chests:
@@ -13,19 +14,24 @@ client-loot-chests:
   refresh-period-ticks: 40
 
   rules:
+    # Example 1: Hidden reward chest available to players level 2 and above,
+    # with tiered cooldowns based on player level.
     hidden_reward_chest:
       enabled: true
       # The block visual to send. Use CHEST, ENDER_CHEST, TRAPPED_CHEST, BARREL, etc.
       display-block: CHEST
-      # Title for the UI inventory window that opens upon interaction.
+      # Title for the UI inventory window that opens upon interaction (MiniMessage supported).
       gui-title: "<gold>Reward Chest"
+      # Legacy condition (can be left blank if using the conditions list)
       condition: "%mmocore_level% >= 2"
       conditions: [ ]
 
-      # Cooldown rules read top-to-bottom.
+      # Cooldown rules read top-to-bottom. The logic selects the duration of the FIRST condition that passes.
       cooldowns:
         - condition: "%mmocore_level% >= 10"
           duration-ticks: 6000 # 5 minutes cooldown for high level players
+        - condition: "%luckperms_has_permission_vip% == true"
+          duration-ticks: 3000 # 2.5 minutes cooldown for VIP players
         - condition: ""
           duration-ticks: 12000 # 10 minutes default cooldown for everyone else
 
@@ -41,3 +47,26 @@ client-loot-chests:
           material: GOLD_INGOT
           amount: 5
           name: "<yellow>Reward Gold"
+
+    # Example 2: Ender chest containing rare loot with multiple conditions.
+    rare_ender_chest:
+      enabled: true
+      display-block: ENDER_CHEST
+      gui-title: "<dark_purple>Mysterious Chest"
+      condition: ""
+      # All conditions must be met for the chest to appear.
+      conditions:
+        - "%statistic_time_played% >= 3600" # Must have played for at least 1 hour
+      cooldowns:
+        - condition: ""
+          duration-ticks: 86400 # 1 hour default cooldown (assuming 20 ticks/sec)
+      location:
+        world: world
+        x: 50
+        y: 70
+        z: -10
+      drops:
+        - type: vanilla
+          material: DIAMOND
+          amount: 1
+          name: "<aqua>Mysterious Gem"

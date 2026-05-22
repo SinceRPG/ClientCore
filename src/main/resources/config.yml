@@ -1,10 +1,12 @@
 # ==============================================================================
 # ClientCore Main Configuration
 # Target server: Paper/Folia 26.1.2 only.
+# This configuration file controls the core settings, database connectivity,
+# luck mechanics, and third-party plugin hooks.
 # ==============================================================================
 
 settings:
-  # Enable for verbose console logs during operations (helpful for debugging).
+  # Enable for verbose console logs during operations (helpful for debugging issues).
   debug: false
 
 storage:
@@ -12,14 +14,20 @@ storage:
   # Use 'sqlite' for a single server, or 'mysql' if you are sharing data across a network proxy.
   # Note: The required JDBC driver must be available on the server classpath.
   type: sqlite
+  
+  # Configuration for SQLite (Recommended for single server setups)
   sqlite:
     file: clientcore.db
+
+  # Configuration for MySQL/MariaDB (Recommended for proxy networks/BungeeCord/Velocity setups)
   mysql:
     host: localhost
     port: 3306
     database: clientcore
     username: root
-    password: ""
+    password: "your_secure_password"
+
+  # Connection pool settings for database performance tuning
   pool:
     maximum-size: 4
     minimum-idle: 1
@@ -31,23 +39,28 @@ luck:
   max-rare-weight-bonus-percent: 300.0
   item:
     # Settings for a physical item representing Luck.
-    # Administrators can give this item via: /clientcore luck giveitem <player> <luck> <amount>
+    # Administrators can give this item via command: /clientcore luck giveitem <player> <luck> <amount>
     material: RABBIT_FOOT
     amount: 1
     name: "<gold>Luck Token"
     item-name: "<gold>Luck Token"
     lore:
       - "<gray>Right-click to consume and gain luck."
+      - "<dark_gray>Increases your chance of finding rare items."
+    # Rarity controls the visual color of the item name in some client versions.
     rarity: RARE
+    # Whether the item should have an enchanted glow effect.
     enchantment-glint: true
+    # Hide default vanilla item tooltips.
     hide-flags: [ HIDE_ATTRIBUTES, HIDE_ENCHANTS ]
 
 hooks:
   # Toggle hooks to third-party plugins on or off.
-  # Set these to false if the plugin is not installed to prevent Java class errors.
-  placeholderapi: true
-  worldguard: true
-  mmoitems: true
-  mythicmobs: true
-  citizens: true
-  fancynpcs: true
+  # Set these to false if the plugin is not installed on your server to prevent Java class errors.
+  # If a hook is enabled but the plugin is missing, a warning will be logged and the hook will be safely ignored.
+  placeholderapi: true # Enables the use of %placeholders% in conditions and messages.
+  worldguard: true     # Enables region-based checks for block regen and spawning.
+  mmoitems: true       # Enables dropping custom items defined in MMOItems.
+  mythicmobs: true     # Enables spawning custom mobs defined in MythicMobs.
+  citizens: true       # Enables using Citizens for client-side NPCs.
+  fancynpcs: true      # Enables using FancyNpcs for client-side NPCs.

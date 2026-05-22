@@ -2,13 +2,17 @@
 # Client-Side Drops Settings
 # Physical ground items that are instanced to the specific player.
 # Supports advanced conditional cooldowns so drops only reappear after a set time.
+# These items are virtual and cannot be picked up by other players.
 # ==============================================================================
 
 client-drops:
   enabled: true
+  # How often (in ticks) to check if a drop should be spawned for a nearby player.
   refresh-period-ticks: 100
 
   rules:
+    # Example 1: A rare tutorial stone that spawns for players level 1 or higher.
+    # Cooldown varies based on VIP status.
     rare_tutorial_stone:
       enabled: true
       condition: "%mmocore_level% >= 1"
@@ -16,9 +20,9 @@ client-drops:
       # Cooldowns read top-to-bottom. The logic selects the duration of the FIRST condition that passes.
       cooldowns:
         - condition: "%luckperms_has_permission_vip% == true"
-          duration-ticks: 1200 # VIPs only have to wait 1 minute for this item to respawn
+          duration-ticks: 1200 # VIPs only have to wait 1 minute (1200 ticks) for this item to respawn
         - condition: "" # A blank condition string acts as a universal fallback.
-          duration-ticks: 6000 # Default players wait 5 minutes
+          duration-ticks: 6000 # Default players wait 5 minutes (6000 ticks)
       location:
         world: world
         x: 15.5
@@ -30,3 +34,24 @@ client-drops:
         name: "<aqua>Rare Tutorial Diamond"
         lore:
           - "<gray>Only visible to you."
+          - "<gray>Used for the starting quest."
+
+    # Example 2: Daily login reward drop located at the server hub.
+    daily_reward_token:
+      enabled: true
+      condition: ""
+      conditions: [ ]
+      cooldowns:
+        - condition: ""
+          duration-ticks: 1728000 # 24 hours cooldown (1728000 ticks) for everyone
+      location:
+        world: hub
+        x: 0.5
+        y: 100.0
+        z: 0.5
+      item:
+        material: SUNFLOWER
+        amount: 3
+        name: "<gold>Daily Token"
+        lore:
+          - "<yellow>Claim your daily reward!"

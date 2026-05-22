@@ -1,0 +1,60 @@
+name: Bug Report
+description: File a bug report to help us improve ClientCore.
+title: "[BUG] "
+labels: [ "bug", "triage" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: input
+    id: plugin-version
+    attributes:
+      label: ClientCore Version
+      description: What version of ClientCore are you using? (e.g., 1.0.0)
+      placeholder: ex. 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: server-version
+    attributes:
+      label: Server Version
+      description: What version of Paper/Folia are you using? (Please provide the exact build number if possible)
+      placeholder: ex. Paper 1.20.4 #450
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what went wrong...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Errors / Console Logs
+      description: Paste any relevant console errors here.
+      render: shell
+    validations:
+      required: false

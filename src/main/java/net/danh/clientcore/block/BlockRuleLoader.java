@@ -1,6 +1,5 @@
 package net.danh.clientcore.block;
 
-import org.bukkit.Material;
 import org.bukkit.Registry;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -32,15 +31,17 @@ final class BlockRuleLoader {
             if (section == null || !section.getBoolean("enabled", true)) {
                 continue;
             }
-            Set<Material> sourceBlocks = new HashSet<>();
-            for (String raw : section.getStringList("source-blocks")) {
-                Material material = Material.matchMaterial(raw);
-                if (material != null && blockNames.contains(material.name())) {
-                    sourceBlocks.add(material);
-                }
-            }
+            String worldName = section.getString("location.world", "world");
+            org.bukkit.World world = org.bukkit.Bukkit.getWorld(worldName);
+            if (world == null) continue;
+            org.bukkit.Location location = new org.bukkit.Location(
+                    world,
+                    section.getDouble("location.x"),
+                    section.getDouble("location.y"),
+                    section.getDouble("location.z")
+            );
 
-            String readyBlock = section.getString("ready-block", "ORIGINAL").toUpperCase(Locale.ROOT);
+            String readyBlock = section.getString("ready-block", "AIR").toUpperCase(Locale.ROOT);
             String cooldownBlock = section.getString("cooldown-block", "AIR").toUpperCase(Locale.ROOT);
 
             List<ConfigurationSection> drops = new ArrayList<>();
@@ -90,19 +91,13 @@ final class BlockRuleLoader {
             }
             rules.add(new BlockRule(
                     id,
-                    section.getInt("priority", 0),
-                    new HashSet<>(section.getStringList("worlds").stream().map(s -> s.toLowerCase(Locale.ROOT)).toList()),
-                    sourceBlocks,
+                    location,
                     section.getString("condition", ""),
                     section.getStringList("conditions"),
                     section.getString("worldguard-flag", defaultFlag),
-                    section.getBoolean("grow-animation.enabled", true),
-                    Math.max(1, section.getInt("grow-animation.frames", 12)),
-                    (float) section.getDouble("grow-animation.view-range", 32.0),
                     variants
             ));
         }
-        rules.sort(Comparator.comparingInt(BlockRule::priority).reversed());
         return rules;
     }
 }

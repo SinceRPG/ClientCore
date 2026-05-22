@@ -2,6 +2,7 @@
 # Client-Side NPCs Settings
 # These NPCs are entirely client-side and only visible to players meeting the conditions.
 # You can use Vanilla Bukkit entities, MythicMobs, Citizens, or FancyNpcs.
+# Useful for personalized guides, quest givers, or dynamic world population.
 # ==============================================================================
 
 client-npcs:
@@ -10,12 +11,13 @@ client-npcs:
   refresh-period-ticks: 100
 
   rules:
+    # Example 1: A FancyNpcs based server guide for low-level players.
     guide_npc:
       enabled: true
       # Select the plugin/provider used to generate this NPC:
       # Acceptable values: VANILLA, MYTHICMOBS, CITIZENS, FANCYNPCS
       provider-type: FANCYNPCS
-      # If provider-type is MYTHICMOBS, enter the mob ID here. Otherwise, leave blank.
+      # If provider-type is MYTHICMOBS or CITIZENS, enter the specific ID here. Otherwise, leave blank.
       provider-id: ""
       # The base entity type to use for the visual model.
       entity-type: VILLAGER
@@ -30,4 +32,22 @@ client-npcs:
         y: 65.0
         z: 10.5
         yaw: 180.0
+        pitch: 0.0
+
+    # Example 2: A Citizens based quest giver available to VIPs.
+    vip_quest_giver:
+      enabled: true
+      provider-type: CITIZENS
+      provider-id: "12" # Assuming Citizen NPC ID 12 exists.
+      entity-type: PLAYER
+      name: "<gold>VIP Quests"
+      condition: ""
+      conditions:
+        - "%luckperms_has_permission_vip% == true"
+      location:
+        world: hub
+        x: -20.5
+        y: 70.0
+        z: 15.5
+        yaw: 90.0
         pitch: 0.0

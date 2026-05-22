@@ -1,44 +1,68 @@
 # ==============================================================================
 # Client-Side Block Regen Settings
-# Modifies how clients see specific blocks based on rules and conditions.
-# Fake block updates are sent with PacketEvents; the real server block remains unchanged.
+# Modifies how clients see specific block locations based on rules and conditions.
+# Fake block updates are sent with PacketEvents; the real server block should be AIR.
+# All settings below provide examples of how you can configure block regeneration
+# for different use cases and player conditions.
 # ==============================================================================
 
 block-regen:
   enabled: true
   # Determines the rendering radius around the player for fake blocks.
+  # Higher values can impact client performance.
   refresh-radius: 10
-  # How often (in ticks) to check and resend the blocks to the player.
+  # How often (in ticks) to check and resend the blocks to the player. (20 ticks = 1 second)
   refresh-period-ticks: 40
   # The default WorldGuard flag name to check if breaking blocks is allowed here.
   default-worldguard-flag: clientcore-regen
-  # Configuration to replace hardcoded 5L join delay
+  # Delay (in ticks) after player joins before sending the first block update.
   join-delay-ticks: 5
 
   rules:
+    # Example 1: Basic block regeneration based on a single condition (MMOCore level).
     level-1-bedrock:
       enabled: true
-      worlds: [ world ]
-      # The blocks that should visually turn into something else.
-      source-blocks: [ STONE, DEEPSLATE ]
-      # ORIGINAL means it will show the actual real block (Stone/Deepslate) before mining
-      ready-block: ORIGINAL
-      # The fake block sent to the client while the node is regenerating
+      location:
+        world: world
+        x: 10
+        y: 65
+        z: 10
+      # ORIGINAL means it will show the actual real block (AIR) before mining,
+      # or you can specify a specific material like STONE.
+      ready-block: STONE
+      # The fake block sent to the client while the node is regenerating.
       cooldown-block: BEDROCK
-      # Legacy single placeholder condition
+      # Legacy single placeholder condition (Use 'conditions' list for multiple)
       condition: "%mmocore_level% <= 1"
       conditions: [ ]
-      priority: 100
-      # The amount of time in ticks it takes for the client-side block to visually "respawn" after being broken.
+      # The amount of time in ticks it takes for the client-side block to visually "respawn".
       regen-ticks: 80
-      grow-animation:
-        enabled: true
-        frames: 12
-        block-display: true
-        # Configuration to replace hardcoded 32.0F view range
-        view-range: 32.0
-      # Items that the player will physically receive into their inventory when mining this fake block.
+      # Items that the player will physically receive into their inventory when mining.
       drops:
         - type: vanilla
           material: COBBLESTONE
           amount: 1
+
+    # Example 2: Advanced block regeneration for VIP players with custom item drops.
+    vip-diamond-ore:
+      enabled: true
+      location:
+        world: world
+        x: 15
+        y: 60
+        z: 20
+      ready-block: DIAMOND_ORE
+      cooldown-block: DEEPSLATE
+      # Multiple conditions using the 'conditions' list. All must be true.
+      condition: ""
+      conditions:
+        - "%luckperms_has_permission_vip% == true"
+        - "%player_health% >= 10"
+      regen-ticks: 1200 # 60 seconds cooldown
+      drops:
+        - type: vanilla
+          material: DIAMOND
+          amount: 2
+          name: "<aqua>VIP Diamond"
+          lore:
+            - "<gray>A special diamond for VIPs."

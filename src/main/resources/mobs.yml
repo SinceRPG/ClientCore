@@ -1,7 +1,7 @@
 # ==============================================================================
 # Client-Side Mob Settings
 # Spawns client-only entities that other players cannot see or interact with.
-# Perfect for instanced bosses or player-specific tutorial mobs.
+# Perfect for instanced bosses, player-specific tutorial mobs, or client-side pets.
 # ==============================================================================
 
 client-mobs:
@@ -10,6 +10,8 @@ client-mobs:
   max-distance: 48
 
   rules:
+    # Example 1: A low-level zombie for new players.
+    # Uses MythicMobs if available, otherwise falls back to Vanilla ZOMBIE.
     low-level-zombie:
       enabled: true
       # If MythicMobs is hooked, specify the MythicMob internal name.
@@ -19,7 +21,22 @@ client-mobs:
       # Required player conditions for this mob to appear.
       condition: "%mmocore_level% <= 1"
       conditions: [ ]
+      # Priority determines which mob spawns if multiple rules apply to the same point.
+      # Higher numbers have higher priority.
       priority: 100
-      # Overrides the mob's health and damage properties (visual scaling).
+      # Overrides the mob's health and damage properties (visual scaling on client).
       health: 20.0
       damage: 2.0
+
+    # Example 2: A challenging boss mob for advanced players.
+    # Completely custom health and damage scaling for the client.
+    endgame-boss:
+      enabled: true
+      mythicmob-id: WitherKing
+      fallback-entity: WITHER
+      condition: ""
+      conditions:
+        - "%mmocore_level% >= 50"
+      priority: 200
+      health: 1000.0
+      damage: 50.0

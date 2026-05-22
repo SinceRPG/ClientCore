@@ -1,21 +1,15 @@
 package net.danh.clientcore.block;
 
-import org.bukkit.Material;
+import org.bukkit.Location;
 
 import java.util.List;
-import java.util.Set;
 
 record BlockRule(
         String id,
-        int priority,
-        Set<String> worlds,
-        Set<Material> sourceBlocks,
+        Location location,
         String condition,
         List<String> conditions,
         String worldGuardFlag,
-        boolean animation,
-        int frames,
-        float viewRange,
         List<BlockVariant> variants
 ) {
 }

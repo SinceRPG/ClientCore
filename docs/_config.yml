@@ -1,0 +1,7 @@
+title: ClientCore Documentation
+description: Official Wiki and Documentation for the ClientCore Plugin.
+theme: jekyll-theme-cayman
+
+markdown: kramdown
+plugins:
+  - jekyll-seo-tag
