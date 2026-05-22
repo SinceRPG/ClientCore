@@ -16,7 +16,7 @@ are still server entities, but ClientCore hides and protects them so only their 
 ## Requirements
 
 - Paper/Folia matching the plugin build target.
-- PacketEvents installed as a separate plugin.
+- PacketEvents bundled in the shaded ClientCore jar. A compatible external PacketEvents plugin may also be used.
 - Java version supported by your server build.
 - SQLite or MySQL JDBC driver available on the server classpath if your selected database needs it.
 
@@ -31,13 +31,12 @@ Optional integrations:
 
 ## First Setup
 
-1. Put `ClientCore-1.0.jar` in `plugins/`.
-2. Put PacketEvents in `plugins/`.
-3. Add any optional hook plugins you use.
-4. Start the server once.
-5. Edit files under `plugins/ClientCore/`.
-6. Run `/clientcore reload`.
-7. Use `/clientcore status` to confirm loaded block and mob rule counts.
+1. Put `ClientCore-1.0-all.jar` in `plugins/`.
+2. Add any optional hook plugins you use.
+3. Start the server once.
+4. Edit files under `plugins/ClientCore/`.
+5. Run `/clientcore reload`.
+6. Use `/clientcore status` to confirm loaded block and mob rule counts.
 
 ## Main Topics
 
@@ -45,6 +44,9 @@ Optional integrations:
 - [Main Configuration](config.md)
 - [Conditions](conditions.md)
 - [Commands](commands.md)
+- [Client Builds](client-builds.md)
+- [Folia Compatibility](folia-compatibility.md)
+- [GitHub Actions Build](github-actions.md)
 - [Blocks Regeneration](blocks.md)
 - [Loot Chests](chests.md)
 - [Ground Drops](drops.md)

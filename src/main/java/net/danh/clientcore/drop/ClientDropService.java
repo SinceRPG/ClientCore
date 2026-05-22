@@ -1,6 +1,5 @@
 package net.danh.clientcore.drop;
 
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.condition.CooldownRule;
 import net.danh.clientcore.config.ConfigManager;
@@ -8,6 +7,7 @@ import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.item.ConfigItemBuilder;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.storage.CooldownManager;
+import net.danh.clientcore.util.CompatTask;
 import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -25,6 +25,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.util.Vector;
 
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,7 @@ public final class ClientDropService implements Listener {
     private List<DropRule> rules = List.of();
     private boolean enabled;
     private int refreshRadius;
-    private ScheduledTask refreshTask;
+    private CompatTask refreshTask;
 
     public ClientDropService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, ConditionEvaluator conditions, CooldownManager cooldownManager) {
         this.plugin = plugin;
@@ -70,7 +71,7 @@ public final class ClientDropService implements Listener {
         refreshTask = scheduler.globalTimer(20L, period, task -> {
             if (!enabled) return;
             for (Player player : Bukkit.getOnlinePlayers()) {
-                player.getScheduler().execute(plugin, () -> refreshFor(player), null, 1L);
+                scheduler.entity(player, () -> refreshFor(player));
             }
         });
     }
@@ -80,7 +81,7 @@ public final class ClientDropService implements Listener {
         for (Map<String, Entity> playerDrops : activeDrops.values()) {
             for (Entity entity : playerDrops.values()) {
                 if (plugin.isEnabled()) {
-                    entity.getScheduler().execute(plugin, entity::remove, null, 1L);
+                    scheduler.entity(entity, entity::remove);
                 } else {
                     try {
                         entity.remove();
@@ -108,11 +109,6 @@ public final class ClientDropService implements Listener {
             boolean shouldSpawn = inRange && passedConditions && !isOnCooldown;
 
             Entity currentDrop = spawned.get(rule.id());
-            if (currentDrop != null && (!currentDrop.isValid() || Bukkit.getEntity(currentDrop.getUniqueId()) == null)) {
-                spawned.remove(rule.id());
-                currentDrop = null;
-            }
-
             boolean exists = currentDrop != null;
 
             if (shouldSpawn && !exists) {
@@ -124,10 +120,10 @@ public final class ClientDropService implements Listener {
                     Item item = loc.getWorld().dropItem(loc, itemStack);
                     item.setPickupDelay(0);
                     item.setGravity(false);
-                    item.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
+                    item.setVelocity(new Vector(0, 0, 0));
                     item.setInvulnerable(true);
 
-                    // Đóng dấu đây là item ảo của ClientCore để các Event khác có thể nhận diện
+                    // Mark the item as a ClientCore virtual drop so event handlers can protect it.
                     item.getPersistentDataContainer().set(dropKey, PersistentDataType.BYTE, (byte) 1);
 
                     hideFromOthers(item, player);
@@ -135,18 +131,23 @@ public final class ClientDropService implements Listener {
                 });
             } else if (!shouldSpawn && exists) {
                 Entity item = spawned.remove(rule.id());
-                if (item != null) item.getScheduler().execute(plugin, item::remove, null, 1L);
+                if (item != null) scheduler.entity(item, item::remove);
             }
         }
     }
 
     private void hideFromOthers(Entity entity, Player viewer) {
         entity.setVisibleByDefault(false);
-        viewer.showEntity(plugin, entity);
+        scheduler.entity(viewer, () -> {
+            if (viewer.isOnline()) viewer.showEntity(plugin, entity);
+        });
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (!online.getUniqueId().equals(viewer.getUniqueId())) {
-                online.hideEntity(plugin, entity);
-                packets.destroyEntity(online, entity.getEntityId());
+                scheduler.entity(online, () -> {
+                    if (!online.isOnline()) return;
+                    online.hideEntity(plugin, entity);
+                    packets.destroyEntity(online, entity.getEntityId());
+                });
             }
         }
     }
@@ -155,9 +156,9 @@ public final class ClientDropService implements Listener {
     public void onPickup(EntityPickupItemEvent event) {
         Item item = event.getItem();
 
-        // Kiểm tra xem item này có phải là ảo (do ClientCore tạo ra) không
+        // Only ClientCore virtual drops need special pickup handling.
         if (item.getPersistentDataContainer().has(dropKey, PersistentDataType.BYTE)) {
-            // Chặn tuyệt đối hành vi nhặt đồ gốc của Minecraft (chống nhặt nhầm của người khác/mob nhặt)
+            // Cancel vanilla pickup so mobs and other players cannot steal the owner's drop.
             event.setCancelled(true);
 
             if (!(event.getEntity() instanceof Player player)) return;
@@ -165,7 +166,7 @@ public final class ClientDropService implements Listener {
             Map<String, Entity> drops = activeDrops.get(player.getUniqueId());
             if (drops == null) return;
 
-            // Xác minh xem item đang nằm dưới đất có thực sự nằm trong danh sách item TỰ TẠO của người chơi này hay không
+            // Confirm that this exact virtual item belongs to the picking player.
             for (Map.Entry<String, Entity> entry : drops.entrySet()) {
                 if (entry.getValue().equals(item)) {
                     String ruleId = entry.getKey();
@@ -173,16 +174,19 @@ public final class ClientDropService implements Listener {
 
                     if (rule == null || cooldownManager.isOnCooldown(player.getUniqueId(), "drop", ruleId)) return;
 
-                    // Xác minh thành công, tự tay nhét item vào kho đồ người chơi
-                    player.getInventory().addItem(item.getItemStack());
-
-                    long duration = calculateCooldown(player, rule.cooldowns());
-                    if (duration > 0) {
-                        cooldownManager.setCooldown(player.getUniqueId(), "drop", ruleId, System.currentTimeMillis() + (duration * 50L));
-                    }
-
-                    item.remove();
+                    ItemStack pickedStack = item.getItemStack().clone();
                     drops.remove(ruleId);
+                    scheduler.entity(player, () -> {
+                        if (!player.isOnline()) return;
+                        // Move the virtual item into the player's inventory on the player thread.
+                        player.getInventory().addItem(pickedStack);
+
+                        long duration = calculateCooldown(player, rule.cooldowns());
+                        if (duration > 0) {
+                            cooldownManager.setCooldown(player.getUniqueId(), "drop", ruleId, System.currentTimeMillis() + (duration * 50L));
+                        }
+                        scheduler.entity(item, item::remove);
+                    });
                     break;
                 }
             }
@@ -191,7 +195,7 @@ public final class ClientDropService implements Listener {
 
     @EventHandler
     public void onHopperPickup(InventoryPickupItemEvent event) {
-        // Ngăn chặn phễu (hopper) hoặc xe mỏ hút đồ ảo vào rương
+        // Prevent hoppers and hopper minecarts from collecting virtual drops.
         if (event.getItem().getPersistentDataContainer().has(dropKey, PersistentDataType.BYTE)) {
             event.setCancelled(true);
         }
@@ -199,7 +203,7 @@ public final class ClientDropService implements Listener {
 
     @EventHandler
     public void onItemMerge(ItemMergeEvent event) {
-        // Ngăn chặn các đồ ảo gộp lại với nhau hoặc gộp với đồ thật
+        // Prevent virtual drops from merging with each other or real items.
         if (event.getEntity().getPersistentDataContainer().has(dropKey, PersistentDataType.BYTE) ||
                 event.getTarget().getPersistentDataContainer().has(dropKey, PersistentDataType.BYTE)) {
             event.setCancelled(true);
@@ -224,8 +228,11 @@ public final class ClientDropService implements Listener {
         Player player = event.getPlayer();
         for (Map<String, Entity> drops : activeDrops.values()) {
             for (Entity entity : drops.values()) {
-                player.hideEntity(plugin, entity);
-                packets.destroyEntity(player, entity.getEntityId());
+                scheduler.entity(player, () -> {
+                    if (!player.isOnline()) return;
+                    player.hideEntity(plugin, entity);
+                    packets.destroyEntity(player, entity.getEntityId());
+                });
             }
         }
         scheduler.regionLater(player.getLocation(), 20L, task -> refreshFor(player));
@@ -236,7 +243,7 @@ public final class ClientDropService implements Listener {
         Map<String, Entity> drops = activeDrops.remove(event.getPlayer().getUniqueId());
         if (drops != null) {
             for (Entity drop : drops.values()) {
-                drop.getScheduler().execute(plugin, drop::remove, null, 1L);
+                scheduler.entity(drop, drop::remove);
             }
         }
     }

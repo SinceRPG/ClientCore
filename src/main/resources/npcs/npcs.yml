@@ -7,6 +7,8 @@
 
 client-npcs:
   enabled: true
+  # Rendering distance radius in blocks for provider NPC visibility checks.
+  refresh-radius: 32
   # How often (in ticks) to evaluate conditions and spawn/remove NPCs near the player.
   refresh-period-ticks: 100
 

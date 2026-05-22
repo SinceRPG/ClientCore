@@ -42,6 +42,35 @@ Toggle debug:
 /clientcore debug off
 ```
 
+## Client Builds
+
+Capture a temporary build session:
+
+```text
+/clientcore build mode on
+/packetmode on
+```
+
+While capture mode is enabled, placed blocks are recorded and existing block breaks are shown as client-side air to the
+builder. Saving writes the layout to `client-builds.yml`, restores the real world blocks, and turns capture mode off.
+
+```text
+/clientcore build save tutorial_bridge
+/packetsave tutorial_bridge
+```
+
+Apply or remove the saved build for a single online player:
+
+```text
+/clientcore build apply tutorial_bridge Steve on
+/clientcore build apply tutorial_bridge Steve off
+/packetapply tutorial_bridge Steve on
+/packetapply tutorial_bridge Steve off
+```
+
+Applied builds persist by player UUID in `client-build-players.yml` and are resent after join. The visual block changes
+are sent with PacketEvents.
+
 ## Visibility
 
 ```text

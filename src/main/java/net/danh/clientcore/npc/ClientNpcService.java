@@ -1,10 +1,10 @@
 package net.danh.clientcore.npc;
 
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.packet.ClientPacketService;
+import net.danh.clientcore.util.CompatTask;
 import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -26,7 +26,7 @@ public final class ClientNpcService implements Listener {
     private List<NpcRule> rules = List.of();
     private boolean enabled;
     private int refreshRadius;
-    private ScheduledTask refreshTask;
+    private CompatTask refreshTask;
 
     public ClientNpcService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, ConditionEvaluator conditions) {
         this.plugin = plugin;
@@ -47,7 +47,7 @@ public final class ClientNpcService implements Listener {
         refreshTask = scheduler.globalTimer(20L, period, task -> {
             if (!enabled) return;
             for (Player player : Bukkit.getOnlinePlayers()) {
-                player.getScheduler().execute(plugin, () -> refreshFor(player), null, 1L);
+                scheduler.entity(player, () -> refreshFor(player));
             }
         });
     }

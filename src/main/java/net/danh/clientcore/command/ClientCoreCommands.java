@@ -1,7 +1,7 @@
 package net.danh.clientcore.command;
 
-import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
@@ -11,6 +11,7 @@ import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEven
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.danh.clientcore.ClientCore;
 import net.danh.clientcore.block.BlockRegenService;
+import net.danh.clientcore.build.ClientBuildService;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.luck.LuckItemService;
 import net.danh.clientcore.luck.LuckService;
@@ -32,7 +33,7 @@ public final class ClientCoreCommands {
     private ClientCoreCommands() {
     }
 
-    public static void register(ClientCore plugin, ConfigManager config, BlockRegenService blockService, ClientMobService mobService, VisibilityService visibility, LuckService luck, LuckItemService luckItems) {
+    public static void register(ClientCore plugin, ConfigManager config, BlockRegenService blockService, ClientMobService mobService, ClientBuildService buildService, VisibilityService visibility, LuckService luck, LuckItemService luckItems) {
         plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, (ReloadableRegistrarEvent<Commands> event) -> {
 
             LiteralArgumentBuilder<CommandSourceStack> rootBuilder = Commands.literal("clientcore");
@@ -104,10 +105,12 @@ public final class ClientCoreCommands {
                                     return 0;
                                 }
                                 int amount = IntegerArgumentType.getInteger(context, "amount");
-                                for (int i = 0; i < amount; i++) {
-                                    Location location = player.getLocation().add(player.getLocation().getDirection().normalize().multiply(3 + i));
-                                    plugin.scheduler().region(location, () -> mobService.spawnFor(player, location));
-                                }
+                                plugin.scheduler().entity(player, () -> {
+                                    for (int i = 0; i < amount; i++) {
+                                        Location location = player.getLocation().add(player.getLocation().getDirection().normalize().multiply(3 + i));
+                                        plugin.scheduler().region(location, () -> mobService.spawnFor(player, location));
+                                    }
+                                });
                                 Text.sendConfig(player, config, "commands.mob-spawned", "{amount}", String.valueOf(amount));
                                 return amount;
                             })));
@@ -164,8 +167,10 @@ public final class ClientCoreCommands {
                                     return 0;
                                 }
                                 String id = StringArgumentType.getString(context, "id");
-                                mobService.setSpawn(id, player.getLocation());
-                                Text.sendConfig(player, config, "commands.spawn-set", "{id}", id);
+                                plugin.scheduler().entity(player, () -> {
+                                    mobService.setSpawn(id, player.getLocation());
+                                    Text.sendConfig(player, config, "commands.spawn-set", "{id}", id);
+                                });
                                 return 1;
                             })));
 
@@ -269,6 +274,8 @@ public final class ClientCoreCommands {
                                 Text.sendConfig(context.getSource().getSender(), config, "commands.debug-set", "{state}", String.valueOf(enabled));
                                 return 1;
                             })));
+
+            rootBuilder.then(buildCommandTree(plugin, config, buildService));
 
             LiteralArgumentBuilder<CommandSourceStack> luckCmd = Commands.literal("luck");
 
@@ -386,7 +393,89 @@ public final class ClientCoreCommands {
             rootBuilder.then(luckCmd);
 
             event.registrar().register(plugin.getPluginMeta(), rootBuilder.build(), "ClientCore admin command", List.of("ccore"));
+            event.registrar().register(legacyPacketMode(config, buildService).build(), "Start or stop ClientCore build capture", List.of());
+            event.registrar().register(legacyPacketSave(config, buildService).build(), "Save a captured ClientCore build", List.of());
+            event.registrar().register(legacyPacketApply(config, buildService).build(), "Apply or remove a ClientCore build", List.of());
         });
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> buildCommandTree(ClientCore plugin, ConfigManager config, ClientBuildService buildService) {
+        return Commands.literal("build")
+                .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                .then(Commands.literal("mode")
+                        .then(Commands.argument("state", StringArgumentType.word())
+                                .suggests((context, builder) -> {
+                                    builder.suggest("on");
+                                    builder.suggest("off");
+                                    return builder.buildFuture();
+                                })
+                                .executes(context -> packetMode(config, buildService, context.getSource().getSender(), StringArgumentType.getString(context, "state")))))
+                .then(Commands.literal("save")
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .executes(context -> packetSave(config, buildService, context.getSource().getSender(), StringArgumentType.getString(context, "name")))))
+                .then(Commands.literal("apply")
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests((context, builder) -> {
+                                    for (String value : buildService.buildNames()) {
+                                        builder.suggest(value);
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .then(Commands.argument("player", StringArgumentType.word())
+                                        .suggests((context, builder) -> suggestPlayers(builder))
+                                        .then(Commands.argument("state", StringArgumentType.word())
+                                                .suggests((context, builder) -> {
+                                                    builder.suggest("on");
+                                                    builder.suggest("off");
+                                                    return builder.buildFuture();
+                                                })
+                                                .executes(context -> packetApply(config, buildService, context.getSource().getSender(),
+                                                        StringArgumentType.getString(context, "name"),
+                                                        StringArgumentType.getString(context, "player"),
+                                                        StringArgumentType.getString(context, "state")))))));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> legacyPacketMode(ConfigManager config, ClientBuildService buildService) {
+        return Commands.literal("packetmode")
+                .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                .then(Commands.argument("state", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            builder.suggest("on");
+                            builder.suggest("off");
+                            return builder.buildFuture();
+                        })
+                        .executes(context -> packetMode(config, buildService, context.getSource().getSender(), StringArgumentType.getString(context, "state"))));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> legacyPacketSave(ConfigManager config, ClientBuildService buildService) {
+        return Commands.literal("packetsave")
+                .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .executes(context -> packetSave(config, buildService, context.getSource().getSender(), StringArgumentType.getString(context, "name"))));
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> legacyPacketApply(ConfigManager config, ClientBuildService buildService) {
+        return Commands.literal("packetapply")
+                .requires(source -> source.getSender().hasPermission("clientcore.admin"))
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            for (String value : buildService.buildNames()) {
+                                builder.suggest(value);
+                            }
+                            return builder.buildFuture();
+                        })
+                        .then(Commands.argument("player", StringArgumentType.word())
+                                .suggests((context, builder) -> suggestPlayers(builder))
+                                .then(Commands.argument("state", StringArgumentType.word())
+                                        .suggests((context, builder) -> {
+                                            builder.suggest("on");
+                                            builder.suggest("off");
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(context -> packetApply(config, buildService, context.getSource().getSender(),
+                                                StringArgumentType.getString(context, "name"),
+                                                StringArgumentType.getString(context, "player"),
+                                                StringArgumentType.getString(context, "state"))))));
     }
 
     private static String blank(String value) {
@@ -398,6 +487,71 @@ public final class ClientCoreCommands {
             builder.suggest(player.getName());
         }
         return builder.buildFuture();
+    }
+
+    private static int packetMode(ConfigManager config, ClientBuildService buildService, CommandSender sender, String state) {
+        if (!(sender instanceof Player player)) {
+            Text.sendConfig(sender, config, "commands.only-players");
+            return 0;
+        }
+        if (state.equalsIgnoreCase("on")) {
+            if (buildService.startSession(player)) {
+                Text.sendConfig(player, config, "commands.client-build-mode-on");
+                return 1;
+            }
+            Text.sendConfig(player, config, "commands.client-build-disabled");
+            return 0;
+        }
+        if (state.equalsIgnoreCase("off")) {
+            buildService.stopSession(player);
+            Text.sendConfig(player, config, "commands.client-build-mode-off");
+            return 1;
+        }
+        Text.sendConfig(player, config, "commands.client-build-mode-usage");
+        return 0;
+    }
+
+    private static int packetSave(ConfigManager config, ClientBuildService buildService, CommandSender sender, String buildName) {
+        if (!(sender instanceof Player player)) {
+            Text.sendConfig(sender, config, "commands.only-players");
+            return 0;
+        }
+        if (!buildService.hasSession(player)) {
+            Text.sendConfig(player, config, "commands.client-build-save-needs-mode");
+            return 0;
+        }
+        if (!buildService.saveSession(player, buildName)) {
+            Text.sendConfig(player, config, "commands.client-build-save-empty");
+            return 0;
+        }
+        Text.sendConfig(player, config, "commands.client-build-saved", "{build}", buildName);
+        Text.sendConfig(player, config, "commands.client-build-mode-off");
+        return 1;
+    }
+
+    private static int packetApply(ConfigManager config, ClientBuildService buildService, CommandSender sender, String buildName, String playerName, String state) {
+        Player target = Bukkit.getPlayerExact(playerName);
+        if (target == null) {
+            Text.sendConfig(sender, config, "commands.player-not-found");
+            return 0;
+        }
+        if (state.equalsIgnoreCase("on")) {
+            if (!buildService.applyBuild(sender, target, buildName)) {
+                return 0;
+            }
+            Text.sendConfig(sender, config, "commands.client-build-applied", "{build}", buildName, "{player}", target.getName());
+            return 1;
+        }
+        if (state.equalsIgnoreCase("off")) {
+            if (!buildService.removeBuild(target, buildName)) {
+                Text.sendConfig(sender, config, "commands.client-build-not-applied", "{build}", buildName, "{player}", target.getName());
+                return 0;
+            }
+            Text.sendConfig(sender, config, "commands.client-build-removed", "{build}", buildName, "{player}", target.getName());
+            return 1;
+        }
+        Text.sendConfig(sender, config, "commands.client-build-apply-usage");
+        return 0;
     }
 
     private static int spawnMythic(ClientCore plugin, ConfigManager config, ClientMobService mobService, CommandSender sender, String viewerInput, String mobId, double level, int amount) {
@@ -416,10 +570,12 @@ public final class ClientCoreCommands {
             }
         }
 
-        for (int i = 0; i < amount; i++) {
-            Location location = viewer.getLocation().add(viewer.getLocation().getDirection().normalize().multiply(3 + i));
-            plugin.scheduler().region(location, () -> mobService.spawnMythicFor(viewer, location, mobId, level));
-        }
+        plugin.scheduler().entity(viewer, () -> {
+            for (int i = 0; i < amount; i++) {
+                Location location = viewer.getLocation().add(viewer.getLocation().getDirection().normalize().multiply(3 + i));
+                plugin.scheduler().region(location, () -> mobService.spawnMythicFor(viewer, location, mobId, level));
+            }
+        });
         Text.sendConfig(sender, config, "commands.mythic-mob-spawned",
                 "{amount}", String.valueOf(amount), "{mob}", mobId, "{player}", viewer.getName(), "{level}", String.valueOf(level));
         return amount;

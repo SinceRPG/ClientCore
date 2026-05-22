@@ -7,9 +7,6 @@ authors: [ VoChiDanh ]
 folia-supported: true
 dependencies:
   server:
-    packetevents:
-      load: BEFORE
-      required: true
     PlaceholderAPI:
       load: BEFORE
       required: false

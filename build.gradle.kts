@@ -19,8 +19,9 @@ repositories {
 
 dependencies {
     paperweight.paperDevBundle(libs.versions.paper.api.get())
-    compileOnly("com.github.retrooper:packetevents-spigot:2.12.1") { isTransitive = false }
-    compileOnly("com.github.retrooper:packetevents-api:2.12.1") { isTransitive = false }
+    implementation("com.github.retrooper:packetevents-spigot:2.12.1") { isTransitive = false }
+    implementation("com.github.retrooper:packetevents-api:2.12.1") { isTransitive = false }
+    implementation("com.github.retrooper:packetevents-netty-common:2.12.1") { isTransitive = false }
     compileOnly("me.clip:placeholderapi:2.12.2") { isTransitive = false }
     compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.15") { isTransitive = false }
     compileOnly("com.sk89q.worldguard:worldguard-core:7.0.15") { isTransitive = false }
@@ -59,5 +60,10 @@ tasks {
         filesMatching("paper-plugin.yml") {
             expand(props)
         }
+    }
+
+    shadowJar {
+        exclude("plugin.yml")
+        exclude("META-INF/packetevents_*_version.txt")
     }
 }

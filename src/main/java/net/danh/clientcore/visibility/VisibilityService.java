@@ -1,5 +1,6 @@
 package net.danh.clientcore.visibility;
 
+import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -14,10 +15,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class VisibilityService implements Listener {
     private final Plugin plugin;
+    private final FoliaScheduler scheduler;
     private final Set<UUID> hidden = ConcurrentHashMap.newKeySet();
 
-    public VisibilityService(Plugin plugin) {
+    public VisibilityService(Plugin plugin, FoliaScheduler scheduler) {
         this.plugin = plugin;
+        this.scheduler = scheduler;
     }
 
     public boolean toggle(Player player) {
@@ -33,7 +36,9 @@ public final class VisibilityService implements Listener {
         hidden.add(player.getUniqueId());
         for (Player other : Bukkit.getOnlinePlayers()) {
             if (!other.getUniqueId().equals(player.getUniqueId())) {
-                other.hidePlayer(plugin, player);
+                scheduler.entity(other, () -> {
+                    if (other.isOnline()) other.hidePlayer(plugin, player);
+                });
             }
         }
     }
@@ -42,7 +47,9 @@ public final class VisibilityService implements Listener {
         hidden.remove(player.getUniqueId());
         for (Player other : Bukkit.getOnlinePlayers()) {
             if (!other.getUniqueId().equals(player.getUniqueId())) {
-                other.showPlayer(plugin, player);
+                scheduler.entity(other, () -> {
+                    if (other.isOnline()) other.showPlayer(plugin, player);
+                });
             }
         }
     }
@@ -56,7 +63,9 @@ public final class VisibilityService implements Listener {
         Player joined = event.getPlayer();
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (hidden.contains(online.getUniqueId()) && !online.getUniqueId().equals(joined.getUniqueId())) {
-                joined.hidePlayer(plugin, online);
+                scheduler.entity(joined, () -> {
+                    if (joined.isOnline()) joined.hidePlayer(plugin, online);
+                });
             }
         }
     }

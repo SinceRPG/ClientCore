@@ -1,6 +1,5 @@
 package net.danh.clientcore.mob;
 
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import io.lumine.mythic.bukkit.events.MythicMobSpawnEvent;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
@@ -9,6 +8,7 @@ import net.danh.clientcore.hook.plugin.MythicMobsHook;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.storage.StorageService;
+import net.danh.clientcore.util.CompatTask;
 import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -16,18 +16,10 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Mob;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.event.entity.EntitySpawnEvent;
-import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.persistence.PersistentDataType;
@@ -36,9 +28,9 @@ import org.bukkit.plugin.Plugin;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 public final class ClientMobService implements Listener {
-    private static final double VISUAL_ENTITY_RADIUS_SQUARED = 9.0D;
     private static final EnumSet<EntityType> VISUAL_ENTITY_TYPES = EnumSet.of(
             EntityType.ARMOR_STAND,
             EntityType.TEXT_DISPLAY,
@@ -64,12 +56,14 @@ public final class ClientMobService implements Listener {
     private final Map<UUID, Entity> clientEntities = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> entityIds = new ConcurrentHashMap<>();
     private final Map<Integer, UUID> packetEntityOwners = new ConcurrentHashMap<>();
+    private final Map<Integer, PacketEntityView> packetEntityViews = new ConcurrentHashMap<>();
     private final ThreadLocal<PendingSpawn> pendingSpawn = new ThreadLocal<>();
     private final Random random = new Random();
     private final AtomicLong spawnTick = new AtomicLong();
     private List<MobRule> rules = List.of();
     private boolean enabled;
-    private ScheduledTask spawnTask;
+    private double visualEntityRadiusSquared;
+    private CompatTask spawnTask;
 
     public ClientMobService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, LuckService luck, StorageService storage) {
         this.plugin = plugin;
@@ -87,6 +81,7 @@ public final class ClientMobService implements Listener {
 
     public void reload() {
         this.enabled = configManager.getMobs().getBoolean("client-mobs.enabled", true);
+        this.visualEntityRadiusSquared = Math.max(0.0D, configManager.getMain().getDouble("settings.packet-filter.visual-entity-radius-squared", 9.0D));
         this.rules = new MobRuleLoader(plugin, configManager).load();
         if (spawnTask != null) spawnTask.cancel();
         spawnTask = scheduler.globalTimer(20L, 20L, task -> tickSpawns());
@@ -97,7 +92,7 @@ public final class ClientMobService implements Listener {
             Entity entity = clientEntities.get(uuid);
             if (entity != null) {
                 if (plugin.isEnabled()) {
-                    entity.getScheduler().execute(plugin, entity::remove, null, 1L);
+                    scheduler.entity(entity, entity::remove);
                 } else {
                     try {
                         entity.remove();
@@ -111,6 +106,7 @@ public final class ClientMobService implements Listener {
         clientEntities.clear();
         entityIds.clear();
         packetEntityOwners.clear();
+        packetEntityViews.clear();
         if (spawnTask != null) {
             spawnTask.cancel();
             spawnTask = null;
@@ -219,6 +215,14 @@ public final class ClientMobService implements Listener {
         return packetEntityOwners;
     }
 
+    public Map<Integer, PacketEntityView> getPacketEntityViews() {
+        return packetEntityViews;
+    }
+
+    public double effectHideRadiusSquared() {
+        return Math.max(0.0D, configManager.getMain().getDouble("settings.packet-filter.effect-hide-radius-squared", 2.25D));
+    }
+
     public Optional<Player> ownerPlayer(Entity entity) {
         UUID ownerId = ownerOf(entity);
         return ownerId == null ? Optional.empty() : Optional.ofNullable(Bukkit.getPlayer(ownerId));
@@ -231,7 +235,7 @@ public final class ClientMobService implements Listener {
             packetEntityOwners.put(entityId, viewer.getUniqueId());
             for (Player online : Bukkit.getOnlinePlayers()) {
                 if (!online.getUniqueId().equals(viewer.getUniqueId())) {
-                    packets.destroyEntity(online, entityId);
+                    scheduler.entity(online, () -> packets.destroyEntity(online, entityId));
                 }
             }
         }
@@ -245,8 +249,11 @@ public final class ClientMobService implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         for (Entity entity : clientEntities.values()) {
-            player.hideEntity(plugin, entity);
-            packets.destroyEntity(player, entity.getEntityId());
+            scheduler.entity(player, () -> {
+                if (!player.isOnline()) return;
+                player.hideEntity(plugin, entity);
+                packets.destroyEntity(player, entity.getEntityId());
+            });
         }
     }
 
@@ -256,7 +263,7 @@ public final class ClientMobService implements Listener {
         for (Map.Entry<UUID, UUID> entry : owners.entrySet()) {
             if (entry.getValue().equals(viewerId)) {
                 Entity entity = clientEntities.get(entry.getKey());
-                if (entity != null) entity.getScheduler().execute(plugin, entity::remove, null, 1L);
+                if (entity != null) scheduler.entity(entity, entity::remove);
             }
         }
         owners.entrySet().removeIf(entry -> entry.getValue().equals(viewerId));
@@ -319,7 +326,7 @@ public final class ClientMobService implements Listener {
 
         if (!configManager.getMain().getBoolean("hooks.mythicmobs", false)) return;
 
-        entity.getScheduler().execute(plugin, () -> {
+        scheduler.entityLater(entity, 2L, task -> {
             if (!entity.isValid()) return;
             UUID parentId = MythicMobsHook.getParentUUID(entity);
             if (parentId != null && owners.containsKey(parentId)) {
@@ -329,7 +336,7 @@ public final class ClientMobService implements Listener {
                     claimEntity(entity, owner, ownerSpawns.get(parentId), false);
                 }
             }
-        }, null, 2L);
+        });
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -368,7 +375,7 @@ public final class ClientMobService implements Listener {
     }
 
     @EventHandler(ignoreCancelled = true)
-    public void onEntityMount(org.bukkit.event.entity.EntityMountEvent event) {
+    public void onEntityMount(EntityMountEvent event) {
         Entity mount = event.getMount();
         Entity passenger = event.getEntity();
 
@@ -430,7 +437,7 @@ public final class ClientMobService implements Listener {
                 forget(entityId);
             } else {
                 UUID ownerId = owners.get(entityId);
-                entity.getScheduler().execute(plugin, () -> validateOwnedEntity(entityId, entity, ownerId), null, 1L);
+                scheduler.entity(entity, () -> validateOwnedEntity(entityId, entity, ownerId));
             }
         }
 
@@ -440,7 +447,7 @@ public final class ClientMobService implements Listener {
             Location center = point.location();
             if (center == null || center.getWorld() == null) continue;
             for (Player player : Bukkit.getOnlinePlayers()) {
-                player.getScheduler().execute(plugin, () -> tickSpawnPointForPlayer(point, player), null, 1L);
+                scheduler.entity(player, () -> tickSpawnPointForPlayer(point, player));
             }
         }
     }
@@ -485,7 +492,10 @@ public final class ClientMobService implements Listener {
         ownerSpawns.remove(entityId);
         clientEntities.remove(entityId);
         Integer packetEntityId = entityIds.remove(entityId);
-        if (packetEntityId != null) packetEntityOwners.remove(packetEntityId);
+        if (packetEntityId != null) {
+            packetEntityOwners.remove(packetEntityId);
+            packetEntityViews.remove(packetEntityId);
+        }
     }
 
     private void claimEntity(Entity entity, Player viewer, String spawnId, boolean hideArmorStandCarrier) {
@@ -498,6 +508,7 @@ public final class ClientMobService implements Listener {
         owners.put(entity.getUniqueId(), viewer.getUniqueId());
         clientEntities.put(entity.getUniqueId(), entity);
         entityIds.put(entity.getUniqueId(), entity.getEntityId());
+        packetEntityViews.put(entity.getEntityId(), PacketEntityView.from(entity, viewer.getUniqueId()));
         claimPacketEntityIds(List.of(entity.getEntityId()), viewer);
         if (hideArmorStandCarrier && entity instanceof ArmorStand armorStand) {
             armorStand.setVisible(false);
@@ -514,7 +525,7 @@ public final class ClientMobService implements Listener {
         hideFromOthers(entity, viewer);
     }
 
-    private Entity spawnOwned(Player viewer, Location location, String spawnId, java.util.function.Supplier<Entity> supplier) {
+    private Entity spawnOwned(Player viewer, Location location, String spawnId, Supplier<Entity> supplier) {
         PendingSpawn previous = pendingSpawn.get();
         pendingSpawn.set(new PendingSpawn(viewer, location, spawnId));
         try {
@@ -529,6 +540,7 @@ public final class ClientMobService implements Listener {
     }
 
     private void enforceOwnerTarget(Entity entity, Player owner) {
+        packetEntityViews.put(entity.getEntityId(), PacketEntityView.from(entity, owner.getUniqueId()));
         if (entity instanceof Mob mob && mob.getTarget() != owner) {
             mob.setTarget(owner);
         }
@@ -547,9 +559,9 @@ public final class ClientMobService implements Listener {
 
     private Entity nearestOwnedEntity(Entity entity) {
         Entity nearest = null;
-        double bestDistance = VISUAL_ENTITY_RADIUS_SQUARED;
-        for (Entity owned : clientEntities.values()) {
-            if (owned == null || !owned.isValid() || owned.getWorld() != entity.getWorld()) continue;
+        double bestDistance = visualEntityRadiusSquared;
+        for (Entity owned : entity.getNearbyEntities(3.0D, 3.0D, 3.0D)) {
+            if (!owners.containsKey(owned.getUniqueId()) || owned.getWorld() != entity.getWorld()) continue;
             double distance = owned.getLocation().distanceSquared(entity.getLocation());
             if (distance <= bestDistance) {
                 nearest = owned;
@@ -567,12 +579,17 @@ public final class ClientMobService implements Listener {
 
     private void hideFromOthers(Entity entity, Player viewer) {
         entity.setVisibleByDefault(false);
-        viewer.showEntity(plugin, entity);
+        scheduler.entity(viewer, () -> {
+            if (viewer.isOnline()) viewer.showEntity(plugin, entity);
+        });
 
         for (Player online : Bukkit.getOnlinePlayers()) {
             if (!online.getUniqueId().equals(viewer.getUniqueId())) {
-                online.hideEntity(plugin, entity);
-                packets.destroyEntity(online, entity.getEntityId());
+                scheduler.entity(online, () -> {
+                    if (!online.isOnline()) return;
+                    online.hideEntity(plugin, entity);
+                    packets.destroyEntity(online, entity.getEntityId());
+                });
             }
         }
     }
@@ -593,6 +610,13 @@ public final class ClientMobService implements Listener {
     private record PendingSpawn(Player owner, Location location, String spawnId) {
         private boolean matches(Entity entity) {
             return entity.getWorld() == location.getWorld() && entity.getLocation().distanceSquared(location) <= 16.0D;
+        }
+    }
+
+    public record PacketEntityView(UUID owner, String world, double x, double y, double z) {
+        private static PacketEntityView from(Entity entity, UUID owner) {
+            Location location = entity.getLocation();
+            return new PacketEntityView(owner, location.getWorld() == null ? "" : location.getWorld().getName(), location.getX(), location.getY(), location.getZ());
         }
     }
 }

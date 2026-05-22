@@ -5,13 +5,13 @@ import com.github.retrooper.packetevents.event.PacketListenerAbstract;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.protocol.player.DiggingAction;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerDigging;
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.item.ConfigItemBuilder;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
+import net.danh.clientcore.util.CompatTask;
 import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.*;
 import org.bukkit.block.data.BlockData;
@@ -34,6 +34,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     private final HookRegistry hooks;
     private final ClientPacketService packets;
     private final LuckService luck;
+    private final ClientBlockSupportService support;
     private final ConditionEvaluator conditions;
     private final ConfigItemBuilder itemBuilder;
     private final Map<UUID, Set<String>> regenerating = new ConcurrentHashMap<>();
@@ -41,16 +42,17 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     private List<BlockRule> rules = List.of();
     private boolean enabled;
     private int refreshRadius;
-    private ScheduledTask refreshTask;
+    private CompatTask refreshTask;
     private long joinDelayTicks;
 
-    public BlockRegenService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, LuckService luck) {
+    public BlockRegenService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, LuckService luck, ClientBlockSupportService support) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.scheduler = scheduler;
         this.hooks = hooks;
         this.packets = packets;
         this.luck = luck;
+        this.support = support;
         this.conditions = new ConditionEvaluator(hooks);
         this.itemBuilder = new ConfigItemBuilder(plugin, hooks);
         PacketEvents.getAPI().getEventManager().registerListener(this);
@@ -70,15 +72,18 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                 return;
             }
             for (Player player : Bukkit.getOnlinePlayers()) {
-                player.getScheduler().execute(plugin, () -> refreshAround(player), null, 1L);
+                scheduler.entity(player, () -> refreshAround(player));
             }
         });
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.getScheduler().execute(plugin, () -> refreshAround(player), null, 1L);
+            scheduler.entity(player, () -> refreshAround(player));
         }
     }
 
     public void shutdown() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            restoreVisible(player);
+        }
         regenerating.clear();
         visibleBlocks.clear();
         if (refreshTask != null) {
@@ -102,12 +107,18 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         int x = digging.getBlockPosition().getX();
         int y = digging.getBlockPosition().getY();
         int z = digging.getBlockPosition().getZ();
+        DiggingAction action = digging.getAction();
 
+        scheduler.entity(player, () -> handleDigPacket(player, action, x, y, z));
+    }
+
+    private void handleDigPacket(Player player, DiggingAction action, int x, int y, int z) {
+        if (!player.isOnline()) return;
         Optional<BlockMatch> optionalMatch = ruleForLocation(player, x, y, z);
         if (optionalMatch.isEmpty()) return;
 
-        // Bỏ qua START_DIGGING cho khối có thời gian phá, trừ khi ở chế độ sáng tạo
-        if (digging.getAction() == DiggingAction.START_DIGGING && player.getGameMode() != GameMode.CREATIVE) {
+        // START_DIGGING is ignored for survival players so normal client break timing is preserved.
+        if (action == DiggingAction.START_DIGGING && player.getGameMode() != GameMode.CREATIVE) {
             return;
         }
 
@@ -132,8 +143,9 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             cooldownData = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
         }
         packets.sendBlock(player, rule.location(), cooldownData);
+        support.sendBlock(player, rule.location(), cooldownData);
 
-        giveDrops(player, variant.drops());
+        scheduler.entity(player, () -> giveDrops(player, variant.drops()));
 
         scheduler.regionLater(rule.location(), variant.regenTicks(), task -> {
             if (player.isOnline()) {
@@ -145,6 +157,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                     finalData = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
                 }
                 packets.sendBlock(player, rule.location(), finalData);
+                support.sendBlock(player, rule.location(), finalData);
             }
             active.remove(rule.id());
         });
@@ -160,6 +173,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     public void onQuit(PlayerQuitEvent event) {
         regenerating.remove(event.getPlayer().getUniqueId());
         visibleBlocks.remove(event.getPlayer().getUniqueId());
+        support.clear(event.getPlayer());
     }
 
     public int ruleCount() {
@@ -196,21 +210,13 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             if (shouldBeVisible) {
                 BlockVariant variant = chooseVariant(player, rule, conditions.evaluate(player, rule.condition(), rule.conditions()).passedOptionalIds());
                 String blockMaterial = isRegenerating ? variant.cooldownBlock() : variant.readyBlock();
-                BlockData data;
-                if ("ORIGINAL".equalsIgnoreCase(blockMaterial)) {
-                    data = loc.getWorld().getBlockAt(loc).getBlockData();
-                } else {
-                    Material mat = Material.matchMaterial(blockMaterial);
-                    data = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
-                }
-
-                // Gửi packet nếu chưa visible hoặc nếu trạng thái block bị lỗi đồng bộ
-                packets.sendBlock(player, loc, data);
+                sendConfiguredBlock(player, loc, blockMaterial);
                 if (!isVisible) visible.put(rule.id(), loc);
 
             } else if (!shouldBeVisible && isVisible) {
                 visible.remove(rule.id());
-                packets.sendBlock(player, loc, loc.getWorld().getBlockAt(loc).getBlockData());
+                support.removeBlock(player, loc);
+                sendRealBlock(player, loc);
             }
         }
     }
@@ -221,8 +227,30 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         for (Location loc : visible.values()) {
             World world = loc.getWorld();
             if (world == null || !loc.isChunkLoaded()) continue;
-            packets.sendBlock(player, loc, world.getBlockAt(loc).getBlockData());
+            support.removeBlock(player, loc);
+            sendRealBlock(player, loc);
         }
+    }
+
+    private void sendConfiguredBlock(Player player, Location location, String blockMaterial) {
+        if ("ORIGINAL".equalsIgnoreCase(blockMaterial)) {
+            sendRealBlock(player, location);
+            return;
+        }
+        Material mat = Material.matchMaterial(blockMaterial);
+        BlockData data = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
+        packets.sendBlock(player, location, data);
+        support.sendBlock(player, location, data);
+    }
+
+    private void sendRealBlock(Player player, Location location) {
+        scheduler.region(location, () -> {
+            World world = location.getWorld();
+            if (world == null || !location.isChunkLoaded()) return;
+            BlockData data = world.getBlockAt(location).getBlockData();
+            packets.sendBlock(player, location, data);
+            support.sendBlock(player, location, data);
+        });
     }
 
     private Optional<BlockMatch> ruleForLocation(Player player, int x, int y, int z) {

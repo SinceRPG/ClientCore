@@ -8,6 +8,17 @@
 settings:
   # Enable for verbose console logs during operations (helpful for debugging issues).
   debug: false
+  # Client-side solid packet blocks do not exist server-side. This support window prevents vanilla flying kicks
+  # while a survival/adventure player is standing on a solid visual block.
+  client-block-support:
+    enabled: true
+    monitor-period-ticks: 5
+    player-half-width: 0.3001
+    foot-y-offset: 0.03
+  # Packet effects around owned client mobs are filtered for non-owners inside this squared radius.
+  packet-filter:
+    visual-entity-radius-squared: 9.0
+    effect-hide-radius-squared: 2.25
 
 storage:
   # Player runtime data and cooldowns are stored in SQL.

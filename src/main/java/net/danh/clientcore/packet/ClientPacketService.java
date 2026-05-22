@@ -6,13 +6,23 @@ import com.github.retrooper.packetevents.util.Vector3i;
 import com.github.retrooper.packetevents.wrapper.PacketWrapper;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerBlockChange;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerDestroyEntities;
+import net.danh.clientcore.util.FoliaScheduler;
 import org.bukkit.Location;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 import java.util.Locale;
 
 public final class ClientPacketService {
+    private final Plugin plugin;
+    private final FoliaScheduler scheduler;
+
+    public ClientPacketService(Plugin plugin, FoliaScheduler scheduler) {
+        this.plugin = plugin;
+        this.scheduler = scheduler;
+    }
+
     private static String normalizeBlock(BlockData blockData) {
         String input = blockData.getAsString().toLowerCase(Locale.ROOT);
         return input.contains(":") ? input : "minecraft:" + input;
@@ -34,6 +44,16 @@ public final class ClientPacketService {
     }
 
     private void send(Player player, PacketWrapper<?> wrapper) {
+        if (!player.isOnline()) {
+            return;
+        }
+        scheduler.entity(player, () -> sendNow(player, wrapper));
+    }
+
+    private void sendNow(Player player, PacketWrapper<?> wrapper) {
+        if (!player.isOnline()) {
+            return;
+        }
         PacketEvents.getAPI().getPlayerManager().sendPacket(player, wrapper);
     }
 }

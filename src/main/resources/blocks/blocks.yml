@@ -53,6 +53,10 @@ block-regen:
         z: 20
       ready-block: DIAMOND_ORE
       cooldown-block: DEEPSLATE
+      weight: 1.0
+      rare: false
+      luck-multiplier: 1.0
+      required-condition-ids: [ ]
       # Multiple conditions using the 'conditions' list. All must be true.
       condition: ""
       conditions:
@@ -66,3 +70,29 @@ block-regen:
           name: "<aqua>VIP Diamond"
           lore:
             - "<gray>A special diamond for VIPs."
+      # Optional variants let one rule roll different visuals and rewards.
+      variants:
+        - id: common
+          ready-block: DIAMOND_ORE
+          cooldown-block: DEEPSLATE
+          weight: 90.0
+          rare: false
+          luck-multiplier: 1.0
+          required-condition-ids: [ ]
+          regen-ticks: 1200
+          drops:
+            - type: vanilla
+              material: DIAMOND
+              amount: 1
+        - id: rare
+          ready-block: EMERALD_ORE
+          cooldown-block: BEDROCK
+          weight: 10.0
+          rare: true
+          luck-multiplier: 2.0
+          required-condition-ids: [ ]
+          regen-ticks: 1800
+          drops:
+            - type: vanilla
+              material: EMERALD
+              amount: 2

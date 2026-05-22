@@ -1,7 +1,7 @@
 package net.danh.clientcore.config;
 
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 
 import java.io.File;
@@ -25,11 +25,13 @@ public final class ConfigManager {
     private static final String NPCS_FOLDER = "npcs";
     private static final String DROPS_FOLDER = "drops";
     private static final String CHESTS_FOLDER = "chests";
+    private static final String BUILDS_FOLDER = "builds";
     private static final String BLOCKS_FILE = "blocks/blocks.yml";
     private static final String MOBS_FILE = "mobs/mobs.yml";
     private static final String NPCS_FILE = "npcs/npcs.yml";
     private static final String DROPS_FILE = "drops/drops.yml";
     private static final String CHESTS_FILE = "chests/chests.yml";
+    private static final String BUILDS_FILE = "builds/builds.yml";
 
     private final Plugin plugin;
     private YamlConfiguration mainConfig;
@@ -38,6 +40,7 @@ public final class ConfigManager {
     private YamlConfiguration npcsConfig;
     private YamlConfiguration dropsConfig;
     private YamlConfiguration chestsConfig;
+    private YamlConfiguration buildsConfig;
     private YamlConfiguration messagesConfig;
 
     public ConfigManager(Plugin plugin) {
@@ -51,6 +54,7 @@ public final class ConfigManager {
         npcsConfig = loadFeatureFolder(NPCS_FOLDER, NPCS_FILE, "npcs.yml", "client-npcs");
         dropsConfig = loadFeatureFolder(DROPS_FOLDER, DROPS_FILE, "drops.yml", "client-drops");
         chestsConfig = loadFeatureFolder(CHESTS_FOLDER, CHESTS_FILE, "chests.yml", "client-loot-chests");
+        buildsConfig = loadFeatureFolder(BUILDS_FOLDER, BUILDS_FILE, "client-builds.yml", "client-builds");
         messagesConfig = load(MESSAGES_FILE, true);
     }
 
@@ -231,6 +235,10 @@ public final class ConfigManager {
 
     public YamlConfiguration getChests() {
         return chestsConfig;
+    }
+
+    public YamlConfiguration getBuilds() {
+        return buildsConfig;
     }
 
     public YamlConfiguration getMessages() {

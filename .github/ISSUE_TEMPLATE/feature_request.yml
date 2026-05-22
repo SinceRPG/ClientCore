@@ -1,38 +1,41 @@
-name: Feature Request
-description: Suggest an idea for ClientCore.
-title: "[FEATURE] "
-labels: [ "enhancement", "triage" ]
+name: Feature request
+description: Suggest a new ClientCore feature or integration.
+title: "[Feature]: "
+labels: [ "enhancement", "needs-triage" ]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thanks for taking the time to suggest a new feature!
   - type: textarea
     id: problem
     attributes:
-      label: Is your feature request related to a problem?
-      description: A clear and concise description of what the problem is.
-      placeholder: I'm always frustrated when...
+      label: Problem or use case
+      description: Describe the gameplay, admin workflow, or integration gap this should solve.
     validations:
       required: true
   - type: textarea
     id: solution
     attributes:
-      label: Describe the solution you'd like
-      description: A clear and concise description of what you want to happen.
+      label: Proposed behavior
+      description: Include commands, config shape, permissions, and expected Folia/Paper behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature area
+      options:
+        - Client-side blocks
+        - Client-side builds
+        - Client-side mobs
+        - Client-side drops
+        - Client-side loot chests
+        - NPC visibility
+        - Luck system
+        - Storage
+        - Documentation
+        - Other
     validations:
       required: true
   - type: textarea
-    id: alternatives
+    id: config
     attributes:
-      label: Describe alternatives you've considered
-      description: A clear and concise description of any alternative solutions or features you've considered.
-    validations:
-      required: false
-  - type: textarea
-    id: context
-    attributes:
-      label: Additional Context
-      description: Add any other context or screenshots about the feature request here.
-    validations:
-      required: false
+      label: Example configuration
+      render: yaml

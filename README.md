@@ -1,121 +1,90 @@
-<div align="center">
-
 # ClientCore
 
-**The Ultimate Client-Side Instancing Plugin for Paper & Folia**
+ClientCore is a Paper and Folia plugin for player-specific client-side gameplay. It uses PacketEvents to send per-player
+block changes and entity visibility updates, while the server keeps authoritative state for rewards, cooldowns, mobs,
+loot, and persistence.
 
-[![Platform](https://img.shields.io/badge/Platform-Paper%20%7C%20Folia-blue)](https://papermc.io/)
-[![Version](https://img.shields.io/badge/Version-1.21+-success)](https://papermc.io/)
+## Features
 
-</div>
+- Client-side block regeneration with ready and cooldown block states.
+- Live client-side build capture with `/packetmode`, `/packetsave`, and `/packetapply`.
+- Player-specific loot chests that open virtual inventories.
+- Player-specific ground drops with cooldowns and protected pickup logic.
+- Client-owned mobs for tutorials, personal bosses, and instanced encounters.
+- Conditional NPC visibility through Citizens or FancyNpcs providers.
+- Luck weighting for rare block and mob variants.
+- PlaceholderAPI, WorldGuard, MMOItems, MythicMobs, ModelEngine, Citizens, and FancyNpcs hooks.
+- Folia-aware scheduling for player, entity, region, global, and storage work.
 
----
+## Installation
 
-## 📖 Overview
+1. Build or download `ClientCore-<version>-all.jar`.
+2. Place the jar in your server `plugins/` folder.
+3. Start the server once to generate `plugins/ClientCore/`.
+4. Edit `config.yml`, `messages.yml`, and the feature folders.
+5. Run `/clientcore reload`.
 
-**ClientCore** is a powerful Minecraft plugin designed specifically for modern servers running **Paper** or **Folia**.
-It allows server administrators to create highly immersive, personalized, and instanced experiences for their players.
+PacketEvents is bundled into the shaded ClientCore jar. You do not need to install PacketEvents separately. If a server
+already has a compatible PacketEvents plugin, ClientCore will use the existing API instead of creating its own instance.
 
-By manipulating packets under the hood, ClientCore sends "fake" blocks, entities, drops, and interactables directly to
-individual clients. This means you can create personalized resource nodes, unique player-bound loot chests, hidden quest
-NPCs, or instanced boss fights—all happening in the same world, but visible only to the specific players you choose
-based on powerful condition systems.
+## Configuration
 
-## ✨ Key Features
+Every feature ships with example rules under `src/main/resources`:
 
-- ⛏️ **Client-Side Block Regeneration:** Create personal, instanced ores or resource nodes (e.g., a diamond ore that
-  only VIPs can see and mine).
-- 🧰 **Client-Side Loot Chests:** Spawn virtual chests with rich GUI menus. Perfect for daily rewards or hidden
-  level-restricted loot.
-- 💎 **Client-Side Item Drops:** Drop physical items on the ground that belong exclusively to the viewer. Other players
-  won't even know it's there.
-- 🧟 **Client-Side Mobs:** Spawn entities (Vanilla or custom MythicMobs) that are fully instanced. Great for personal
-  tutorial mobs or instanced storyline bosses.
-- 🗣️ **Client-Side NPCs:** Generate localized guides and quest givers using Vanilla, Citizens, MythicMobs, or FancyNpcs.
-- 🍀 **Luck System:** Integrated luck mechanics to boost a player's chance of getting "rare" drops or better mob
-  variants.
-- ⚡ **Highly Optimized:** Built ground-up for extreme performance, supporting the latest multi-threaded **Folia**
-  architectures alongside Paper.
+- `config.yml` controls storage, luck, debug logging, and optional hooks.
+- `blocks/blocks.yml` contains block regeneration examples, variants, drops, and conditions.
+- `chests/chests.yml` contains virtual chest examples, cooldown tiers, and GUI loot.
+- `drops/drops.yml` contains protected client-side ground drop examples.
+- `mobs/mobs.yml` contains client-owned mob and MythicMobs fallback examples.
+- `npcs/npcs.yml` contains Citizens and FancyNpcs visibility examples.
+- `builds/builds.yml` contains client-side build examples, visibility conditions, and generated build settings.
+- `messages.yml` contains all user-facing command and console text.
 
-## 🚀 Installation
+All feature folders support multiple YAML files, nested folders, full roots such as `block-regen.rules`, a plain `rules`
+root, or direct rule IDs.
 
-1. Download the latest `ClientCore-xxx.jar` release.
-2. **[REQUIRED]** Download and install the [PacketEvents plugin](https://modrinth.com/plugin/packetevents) into your
-   `plugins/` directory. **ClientCore will not work without it.**
-3. Place the ClientCore jar file into your server's `plugins/` directory.
-4. Start or restart your server to generate the configuration files.
-5. Customize the setups in the `plugins/ClientCore/` directory (see the Configuration section below).
-6. Use `/clientcore reload` in-game or from the console to apply changes.
+## Commands
 
-> **Note:** ClientCore also requires an SQL database to store player data (SQLite is used by default and works out of
-> the box).
+- `/clientcore reload` reloads all configuration files.
+- `/clientcore status` shows loaded rule counts.
+- `/clientcore refresh` resends client-side block state around the sender.
+- `/clientcore build mode <on|off>` captures real block edits into a client-side build session.
+- `/clientcore build save <name>` saves the captured build and restores the real world.
+- `/clientcore build apply <name> <player> <on|off>` applies or removes a saved build for one player.
+- Builds can also use `auto-apply: true` so every player who passes the build conditions sees it automatically.
+- Legacy aliases `/packetmode`, `/packetsave`, and `/packetapply` are also registered.
+- `/clientcore visibility <toggle|hide|show>` controls player visibility.
+- `/clientcore mobspawn <amount>` spawns matching client-owned mobs near the sender.
+- `/clientcore mythicspawn <viewer> <mob> [level] [amount]` spawns a MythicMob for one viewer.
+- `/clientcore setspawn <id>` creates a persistent mob spawn point.
+- `/clientcore delspawn <id>` deletes a persistent mob spawn point.
+- `/clientcore spawns` lists persistent spawn points.
+- `/clientcore spawnattr <id> <attribute> <value>` edits a spawn point.
+- `/clientcore debug <on|off>` toggles debug logging.
+- `/clientcore luck ...` manages luck profiles and luck items.
 
-## ⚙️ Configuration & Wiki
+## Documentation
 
-ClientCore provides extremely extensive and flexible configurations. Every single feature supports conditional checks (
-via PlaceholderAPI) and complex tiered cooldowns.
+The wiki is in the `docs/` folder and can be published with the included GitHub Pages workflow.
 
-We have set up a complete and comprehensive Wiki generated via GitHub Pages. Please refer to our documentation to master
-the plugin:
+- [Wiki Home](docs/index.md)
+- [Configuration Layout](docs/configuration-layout.md)
+- [Main Configuration](docs/config.md)
+- [Conditions](docs/conditions.md)
+- [Commands](docs/commands.md)
+- [Blocks](docs/blocks.md)
+- [Chests](docs/chests.md)
+- [Drops](docs/drops.md)
+- [Mobs](docs/mobs.md)
+- [NPCs](docs/npcs.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
-📚 **[View the Official ClientCore Wiki Here](https://SinceRPG.github.io/ClientCore/)**
+## Development
 
-### Quick Links to Specific Docs:
+Build with:
 
-- [Main Config (`config.yml`)](https://SinceRPG.github.io/ClientCore/config.html)
-- [Configuration Layout](https://SinceRPG.github.io/ClientCore/configuration-layout.html)
-- [Conditions](https://SinceRPG.github.io/ClientCore/conditions.html)
-- [Commands](https://SinceRPG.github.io/ClientCore/commands.html)
-- [Block Regen Rules](https://SinceRPG.github.io/ClientCore/blocks.html)
-- [Loot Chests](https://SinceRPG.github.io/ClientCore/chests.html)
-- [Ground Drops](https://SinceRPG.github.io/ClientCore/drops.html)
-- [Mob Spawns](https://SinceRPG.github.io/ClientCore/mobs.html)
-- [NPC Spawns](https://SinceRPG.github.io/ClientCore/npcs.html)
+```bash
+./gradlew clean build
+```
 
-## 🔌 Supported Integrations & Hooks
-
-ClientCore truly shines when hooked into your server's broader ecosystem. We natively support:
-
-- **[PlaceholderAPI](https://github.com/PlaceholderAPI/PlaceholderAPI):** Absolutely required for the conditional
-  engine (e.g., checking `%mmocore_level%;>=;5`).
-- **[WorldGuard](https://dev.bukkit.org/projects/worldguard):** Introduces custom flags like `clientcore-regen` to
-  protect specific regions.
-- **[MythicMobs](https://mythiccraft.io/):** Use your custom MythicMobs as client-sided bosses or NPCs!
-- **[MMOItems](https://mythiccraft.io/):** Drop heavily customized MMOItems via loot chests, block regen, or ground
-  drops.
-- **[Citizens](https://citizensnpcs.co/) & [FancyNpcs](https://modrinth.com/plugin/fancynpcs):** Use these advanced NPC
-  systems to render your client-sided guides.
-
-## 💻 Commands & Permissions
-
-### Base Command
-
-- `/clientcore` (Alias: `/ccore`)
-
-### User Commands
-
-- `/clientcore status` — View active loaded rules and spawns around you.
-- `/clientcore hide` — Hide yourself from other players (visibility toggle).
-- `/clientcore show` — Unhide yourself.
-
-### Admin Commands (Requires `clientcore.admin`)
-
-- `/clientcore reload` — Safely reload all YAML configurations and caches.
-- `/clientcore refresh` — Force an immediate re-send of packet blocks around you.
-- `/clientcore spawnmob <ruleId> [amount]` — Force-spawn a specific client mob from the config.
-- `/clientcore luck <player> set/add/remove <amount>` — Manage a player's internal Luck stats.
-- `/clientcore luck giveitem <player> <luckValue> <amount>` — Give a consumable Luck Token.
-- `/clientcore setspawn <spawnId> <radius> <ruleId> [amount]` — Set a persistent spawn point in the world for mobs.
-- `/clientcore listspawns` — View all configured spawn points.
-- `/clientcore deletespawn <spawnId>` — Remove a specific spawn point.
-- `/clientcore updatespawn <spawnId> <attribute> <value>` — Live edit a spawn point's radius, amount, or rule.
-- `/clientcore debug` — Toggle detailed console debugging.
-
-## 🐛 Bug Reports & 💡 Feature Requests
-
-If you encounter a bug or have a brilliant idea for a new feature, please let us know! We use GitHub's issue tracker.
-
-- **[Report a Bug](../../issues/new?template=bug_report.yml)**
-- **[Request a Feature](../../issues/new?template=feature_request.yml)**
-
-Please ensure you provide as much detail as possible, including your exact server version and the plugin version.
+The shaded output is written to `build/libs/` and includes PacketEvents plus ClientCore runtime dependencies.

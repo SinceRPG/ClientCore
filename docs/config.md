@@ -69,6 +69,26 @@ hooks:
 Set unused hooks to `false` if the plugin is not installed. ClientCore checks whether the plugin is actually enabled
 before using a hook, so leaving optional hooks enabled is usually safe.
 
+## Folia and Packet Safety Settings
+
+```yaml
+settings:
+  client-block-support:
+    enabled: true
+    monitor-period-ticks: 5
+    player-half-width: 0.3001
+    foot-y-offset: 0.03
+  packet-filter:
+    visual-entity-radius-squared: 9.0
+    effect-hide-radius-squared: 2.25
+```
+
+`client-block-support` prevents survival and adventure players from being kicked by vanilla floating checks when they
+stand on solid client-side packet blocks. The plugin temporarily manages `allowFlight` only while the player is
+supported by a visual block and cancels player flight toggles when the player did not originally have flight permission.
+
+`packet-filter` controls how aggressively non-owner players are prevented from seeing effects around client-side mobs.
+
 ## Auto Update
 
 On load, ClientCore adds missing keys to `config.yml` and `messages.yml` only. Existing values are not reset.

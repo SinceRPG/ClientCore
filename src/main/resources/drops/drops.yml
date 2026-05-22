@@ -7,6 +7,8 @@
 
 client-drops:
   enabled: true
+  # Rendering distance radius in blocks for client-side drops.
+  refresh-radius: 15
   # How often (in ticks) to check if a drop should be spawned for a nearby player.
   refresh-period-ticks: 100
 

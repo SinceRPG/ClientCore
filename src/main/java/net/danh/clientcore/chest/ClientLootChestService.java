@@ -1,6 +1,5 @@
 package net.danh.clientcore.chest;
 
-import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.condition.CooldownRule;
 import net.danh.clientcore.config.ConfigManager;
@@ -8,6 +7,7 @@ import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.item.ConfigItemBuilder;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.storage.CooldownManager;
+import net.danh.clientcore.util.CompatTask;
 import net.danh.clientcore.util.FoliaScheduler;
 import net.danh.clientcore.util.Text;
 import org.bukkit.Bukkit;
@@ -41,7 +41,7 @@ public final class ClientLootChestService implements Listener {
     private List<LootChestRule> rules = List.of();
     private boolean enabled;
     private int refreshRadius;
-    private ScheduledTask refreshTask;
+    private CompatTask refreshTask;
 
     public ClientLootChestService(Plugin plugin, ConfigManager configManager, FoliaScheduler scheduler, HookRegistry hooks, ClientPacketService packets, ConditionEvaluator conditions, CooldownManager cooldownManager) {
         this.plugin = plugin;
@@ -65,7 +65,7 @@ public final class ClientLootChestService implements Listener {
         refreshTask = scheduler.globalTimer(20L, period, task -> {
             if (!enabled) return;
             for (Player player : Bukkit.getOnlinePlayers()) {
-                player.getScheduler().execute(plugin, () -> refreshAround(player), null, 1L);
+                scheduler.entity(player, () -> refreshAround(player));
             }
         });
     }
@@ -81,7 +81,7 @@ public final class ClientLootChestService implements Listener {
 
         for (LootChestRule rule : rules) {
             Location loc = rule.location();
-            // Bảo vệ Folia: Bỏ qua nếu Chunk của rương chưa được tải
+            // Folia guard: skip unloaded chest chunks.
             if (loc.getWorld() != player.getWorld() || !loc.isChunkLoaded()) continue;
 
             double dist = player.getLocation().distanceSquared(loc);
@@ -96,7 +96,7 @@ public final class ClientLootChestService implements Listener {
                 visible.put(rule.id(), loc);
             } else if (!shouldBeVisible && isVisible) {
                 visible.remove(rule.id());
-                packets.sendBlock(player, loc, loc.getWorld().getBlockAt(loc).getBlockData());
+                sendRealBlock(player, loc);
             }
         }
     }
@@ -125,7 +125,7 @@ public final class ClientLootChestService implements Listener {
                 }
 
                 visible.remove(rule.id());
-                packets.sendBlock(player, clicked, clicked.getWorld().getBlockAt(clicked).getBlockData());
+                sendRealBlock(player, clicked);
 
                 Inventory inv = Bukkit.createInventory(null, 27, Text.mm(rule.guiTitle()));
                 List<ItemStack> items = itemBuilder.buildAll(player, rule.drops());
@@ -136,6 +136,13 @@ public final class ClientLootChestService implements Listener {
                 return;
             }
         }
+    }
+
+    private void sendRealBlock(Player player, Location location) {
+        scheduler.region(location, () -> {
+            if (location.getWorld() == null || !location.isChunkLoaded()) return;
+            packets.sendBlock(player, location, location.getWorld().getBlockAt(location).getBlockData());
+        });
     }
 
     private long calculateCooldown(Player player, List<CooldownRule> cooldownRules) {

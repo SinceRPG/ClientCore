@@ -17,6 +17,20 @@ commands:
   blocks-refreshed: "<green>Refreshed client-side blocks around you."
   visibility-hidden: "<green>You are now hidden from other players."
   visibility-visible: "<green>You are now visible to other players."
+
+  # Client-side build capture and application
+  client-build-disabled: "<red>Client-side build capture is disabled in config.yml."
+  client-build-mode-usage: "<red>Usage: /packetmode <on|off>"
+  client-build-apply-usage: "<red>Usage: /packetapply <build> <player> <on|off>"
+  client-build-mode-on: "<green>Packet build mode enabled. Place or break real blocks, then save them with /packetsave <name>."
+  client-build-mode-off: "<yellow>Packet build mode disabled."
+  client-build-save-needs-mode: "<red>Enable packet build mode before saving a build."
+  client-build-save-empty: "<red>No captured block changes were found for this build session."
+  client-build-saved: "<green>Saved client-side build <white>{build}</white>."
+  client-build-not-found: "<red>Client-side build not found: <white>{build}</white>."
+  client-build-applied: "<green>Applied client-side build <white>{build}</white> to <white>{player}</white>."
+  client-build-removed: "<green>Removed client-side build <white>{build}</white> from <white>{player}</white>."
+  client-build-not-applied: "<red><white>{player}</white> does not currently have build <white>{build}</white> applied."
   
   # Mob and spawn management
   mob-spawned: "<green>Spawned {amount} client mob(s)."

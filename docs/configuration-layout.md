@@ -17,6 +17,7 @@ plugins/ClientCore/
   npcs/
   drops/
   chests/
+  builds/
 ```
 
 ## Feature Folder Loading
@@ -30,7 +31,7 @@ blocks/**/*.yml
 blocks/**/*.yaml
 ```
 
-The same applies to `mobs`, `npcs`, `drops`, and `chests`.
+The same applies to `mobs`, `npcs`, `drops`, `chests`, and `builds`.
 
 Files are sorted alphabetically by path before merging. If two files define the same rule ID, the later file overrides
 the same keys.
@@ -81,6 +82,7 @@ mobs: client-mobs
 npcs: client-npcs
 drops: client-drops
 chests: client-loot-chests
+builds: client-builds
 ```
 
 ## Legacy Migration
@@ -93,6 +95,7 @@ mobs.yml
 npcs.yml
 drops.yml
 chests.yml
+client-builds.yml
 ```
 
 If the new folder file does not exist yet, ClientCore moves the legacy file into the matching folder. If both old and

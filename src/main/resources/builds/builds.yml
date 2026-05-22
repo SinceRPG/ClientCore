@@ -1,0 +1,46 @@
+# ==============================================================================
+# Client-Side Build Settings
+# Saved visual structures that can be assigned to players with /packetapply.
+# Build files can be split across plugins/ClientCore/builds/**/*.yml.
+# Packet block changes are sent with PacketEvents and do not create real blocks.
+# ==============================================================================
+
+client-builds:
+  enabled: true
+  # How often saved client-side builds are resent to assigned players.
+  refresh-period-ticks: 40
+  # Delay after join before assigned builds are restored for a player.
+  join-delay-ticks: 10
+  # New builds captured with /packetsave are written here as split YAML files.
+  generated-folder: builds/generated
+  # Player assignment data is stored here. Keep this separate from build definitions.
+  players-file: client-build-players.yml
+
+  rules:
+    tutorial_bridge:
+      enabled: true
+      # When true, this build is visible to every player who passes the conditions below.
+      auto-apply: true
+      # Legacy one-line condition. Leave blank when using the conditions list only.
+      condition: "%mmocore_level%;>=;1"
+      # All conditions must pass before an assigned player can see this build.
+      conditions:
+        - "%luckperms_has_permission_clientcore.tutorial%;==;true"
+      # Keys are world,x,y,z. Values are Bukkit block data strings.
+      blocks:
+        "world,100,65,100": "minecraft:oak_planks"
+        "world,101,65,100": "minecraft:oak_planks"
+        "world,102,65,100": "minecraft:oak_planks"
+
+    vip_hidden_room:
+      enabled: true
+      # When false, use /packetapply vip_hidden_room <player> on before the player can see it.
+      # Conditions still apply after assignment.
+      auto-apply: false
+      condition: ""
+      conditions:
+        - "%luckperms_has_permission_vip%;==;true"
+        - "%player_world%;==;world"
+      blocks:
+        "world,120,70,120": "minecraft:glass"
+        "world,120,71,120": "minecraft:lantern[hanging=false]"

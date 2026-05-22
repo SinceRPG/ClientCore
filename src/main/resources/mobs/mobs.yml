@@ -24,6 +24,10 @@ client-mobs:
       # Priority determines which mob spawns if multiple rules apply to the same point.
       # Higher numbers have higher priority.
       priority: 100
+      weight: 1.0
+      rare: false
+      luck-multiplier: 1.0
+      required-condition-ids: [ ]
       # Overrides the mob's health and damage properties (visual scaling on client).
       health: 20.0
       damage: 2.0
@@ -40,3 +44,23 @@ client-mobs:
       priority: 200
       health: 1000.0
       damage: 50.0
+      # Optional variants let one rule roll between MythicMob IDs, fallback entities, and stat profiles.
+      variants:
+        - id: normal
+          mythicmob-id: WitherKing
+          fallback-entity: WITHER
+          weight: 85.0
+          rare: false
+          luck-multiplier: 1.0
+          required-condition-ids: [ ]
+          health: 1000.0
+          damage: 50.0
+        - id: rare
+          mythicmob-id: AncientWitherKing
+          fallback-entity: WITHER
+          weight: 15.0
+          rare: true
+          luck-multiplier: 2.0
+          required-condition-ids: [ ]
+          health: 1500.0
+          damage: 75.0

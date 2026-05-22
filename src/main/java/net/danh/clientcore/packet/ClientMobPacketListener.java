@@ -10,8 +10,6 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPa
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSoundEffect;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import net.danh.clientcore.mob.ClientMobService;
-import org.bukkit.Location;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
 import java.util.Map;
@@ -32,7 +30,7 @@ public class ClientMobPacketListener extends PacketListenerAbstract implements P
         Map<Integer, UUID> packetOwners = mobService.getPacketEntityOwners();
         if (owners.isEmpty() && packetOwners.isEmpty()) return;
 
-        Map<UUID, Entity> entities = mobService.getClientEntities();
+        Map<Integer, ClientMobService.PacketEntityView> entityViews = mobService.getPacketEntityViews();
 
         if (event.getPacketType() == PacketType.Play.Server.SPAWN_ENTITY) {
             WrapperPlayServerSpawnEntity spawnEntity = new WrapperPlayServerSpawnEntity(event);
@@ -45,18 +43,18 @@ public class ClientMobPacketListener extends PacketListenerAbstract implements P
                     || spawnEntity.getEntityType() == EntityTypes.ITEM_DISPLAY || spawnEntity.getEntityType() == EntityTypes.BLOCK_DISPLAY
                     || spawnEntity.getEntityType() == EntityTypes.INTERACTION || spawnEntity.getEntityType() == EntityTypes.SLIME
                     || spawnEntity.getEntityType() == EntityTypes.MAGMA_CUBE) {
-                if (shouldHide(player, spawnEntity.getPosition().getX(), spawnEntity.getPosition().getY(), spawnEntity.getPosition().getZ(), owners, entities)) {
+                if (shouldHide(player, spawnEntity.getPosition().getX(), spawnEntity.getPosition().getY(), spawnEntity.getPosition().getZ(), entityViews)) {
                     event.setCancelled(true);
                 }
             }
         } else if (event.getPacketType() == PacketType.Play.Server.PARTICLE) {
             WrapperPlayServerParticle particle = new WrapperPlayServerParticle(event);
-            if (shouldHide(player, particle.getPosition().getX(), particle.getPosition().getY(), particle.getPosition().getZ(), owners, entities)) {
+            if (shouldHide(player, particle.getPosition().getX(), particle.getPosition().getY(), particle.getPosition().getZ(), entityViews)) {
                 event.setCancelled(true);
             }
         } else if (event.getPacketType() == PacketType.Play.Server.SOUND_EFFECT) {
             WrapperPlayServerSoundEffect sound = new WrapperPlayServerSoundEffect(event);
-            if (shouldHide(player, sound.getEffectPosition().getX(), sound.getEffectPosition().getY(), sound.getEffectPosition().getZ(), owners, entities)) {
+            if (shouldHide(player, sound.getEffectPosition().getX(), sound.getEffectPosition().getY(), sound.getEffectPosition().getZ(), entityViews)) {
                 event.setCancelled(true);
             }
         } else if (event.getPacketType() == PacketType.Play.Server.ENTITY_SOUND_EFFECT) {
@@ -66,35 +64,21 @@ public class ClientMobPacketListener extends PacketListenerAbstract implements P
                 event.setCancelled(true);
                 return;
             }
-            Entity source = getEntityById(sound.getEntityId(), entities);
-            if (source != null && !owners.getOrDefault(source.getUniqueId(), player.getUniqueId()).equals(player.getUniqueId())) {
+            ClientMobService.PacketEntityView source = entityViews.get(sound.getEntityId());
+            if (source != null && !source.owner().equals(player.getUniqueId())) {
                 event.setCancelled(true);
             }
         }
     }
 
-    private Entity getEntityById(int id, Map<UUID, Entity> entities) {
-        for (Entity entity : entities.values()) {
-            if (entity.getEntityId() == id) return entity;
-        }
-        return null;
-    }
-
-    private boolean shouldHide(Player receiver, double x, double y, double z, Map<UUID, UUID> owners, Map<UUID, Entity> entities) {
-        for (Map.Entry<UUID, Entity> entry : entities.entrySet()) {
-            Entity mob = entry.getValue();
-            if (mob == null || !mob.isValid()) continue;
-
-            Location loc = mob.getLocation();
-            if (loc.getWorld() != receiver.getWorld()) continue;
-
-            double dx = loc.getX() - x;
-            double dy = loc.getY() - y;
-            double dz = loc.getZ() - z;
-            // Radius of 1.5 blocks to catch holograms and particles around the mob
-            if ((dx * dx + dy * dy + dz * dz) <= 2.25) {
-                UUID owner = owners.get(mob.getUniqueId());
-                if (owner != null && !owner.equals(receiver.getUniqueId())) {
+    private boolean shouldHide(Player receiver, double x, double y, double z, Map<Integer, ClientMobService.PacketEntityView> entities) {
+        double hideRadiusSquared = mobService.effectHideRadiusSquared();
+        for (ClientMobService.PacketEntityView view : entities.values()) {
+            double dx = view.x() - x;
+            double dy = view.y() - y;
+            double dz = view.z() - z;
+            if ((dx * dx + dy * dy + dz * dz) <= hideRadiusSquared) {
+                if (!view.owner().equals(receiver.getUniqueId())) {
                     return true;
                 }
             }
