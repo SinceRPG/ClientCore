@@ -96,6 +96,7 @@ condition: optional one-line semicolon condition
 conditions: optional list of semicolon conditions
 worldguard-flag: overrides the default flag for this rule
 regen-ticks: cooldown duration
+mining: optional custom break time, tool requirements, and tool-specific drops
 drops: rewards given directly to the player
 variants: optional weighted variants
 ```
@@ -113,6 +114,61 @@ drops:
 ```
 
 If MMOItems cannot return the item, ClientCore falls back to the vanilla `material`.
+
+## Custom Mining
+
+Add `mining` to a rule or variant when ClientCore should control the break time instead of using the vanilla client
+material timing. If `tools` is set, only matching tools can mine the node.
+
+```yaml
+mining:
+  active-block: BARRIER
+  feedback:
+    display: true
+    actionbar: false
+    particles: true
+    sounds: true
+    interval-ticks: 4
+    message: "<gray>Mining <white>{progress}%</white>"
+    display-format: "<bold>{bar}</bold> <white>{progress}%</white>"
+    bar-length: 12
+    low-color: "<gold>"
+    mid-color: "<yellow>"
+    high-color: "<green>"
+    empty-color: "<dark_gray>"
+    background-argb: "8C0C1016"
+  default-time-ticks: 60
+  tools:
+    - item:
+        type: vanilla
+        material: IRON_PICKAXE
+      time-ticks: 80
+      drops:
+        - type: vanilla
+          material: RAW_IRON
+          amount: 1
+    - item:
+        type: mmoitems
+        mmo-type: TOOL
+        mmo-id: MINER_PICKAXE
+      time-ticks: 30
+      drops:
+        - type: mmoitems
+          mmo-type: MATERIAL
+          mmo-id: RICH_IRON
+          material: RAW_IRON
+```
+
+Tool drops override the variant/rule `drops`. If a matching tool has no `drops`, ClientCore uses the normal
+variant/rule drops.
+
+`active-block` is the hitbox block sent while the player is actively mining. `BARRIER` is recommended because it is
+hard to break and normally invisible; ClientCore renders a player-only `BlockDisplay` with the ready block on top while
+the custom mining timer is active.
+
+`feedback` adds non-vanilla progress feedback for the `BARRIER + BlockDisplay` mode. `display` creates a player-only
+`TextDisplay` progress bar above the block, and particles/sounds provide extra local feedback while the server-side
+mining timer is running.
 
 ## Variants
 

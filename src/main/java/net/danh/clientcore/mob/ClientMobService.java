@@ -27,6 +27,7 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -58,7 +59,6 @@ public final class ClientMobService implements Listener {
     private final Map<Integer, UUID> packetEntityOwners = new ConcurrentHashMap<>();
     private final Map<Integer, PacketEntityView> packetEntityViews = new ConcurrentHashMap<>();
     private final ThreadLocal<PendingSpawn> pendingSpawn = new ThreadLocal<>();
-    private final Random random = new Random();
     private final AtomicLong spawnTick = new AtomicLong();
     private List<MobRule> rules = List.of();
     private boolean enabled;
@@ -413,7 +413,7 @@ public final class ClientMobService implements Listener {
         }
         if (total <= 0.0D) return eligible.getFirst();
 
-        double roll = random.nextDouble(total);
+        double roll = ThreadLocalRandom.current().nextDouble(total);
         double cursor = 0.0D;
         for (MobVariant variant : eligible) {
             cursor += adjustedWeight(variant.weight(), variant.rare(), variant.luckMultiplier(), playerLuck);
@@ -572,8 +572,8 @@ public final class ClientMobService implements Listener {
     }
 
     private Location randomLocation(Location center, double radius) {
-        double angle = random.nextDouble() * Math.PI * 2.0D;
-        double distance = Math.sqrt(random.nextDouble()) * radius;
+        double angle = ThreadLocalRandom.current().nextDouble() * Math.PI * 2.0D;
+        double distance = Math.sqrt(ThreadLocalRandom.current().nextDouble()) * radius;
         return center.clone().add(Math.cos(angle) * distance, 0.0D, Math.sin(angle) * distance);
     }
 

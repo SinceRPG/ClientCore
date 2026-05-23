@@ -14,6 +14,7 @@ record BlockVariant(
         double luckMultiplier,
         Set<String> requiredConditionIds,
         int regenTicks,
+        BlockMiningConfig mining,
         List<ConfigurationSection> drops
 ) {
 }

@@ -64,12 +64,18 @@ public final class FoliaScheduler {
         }
         try {
             Object scheduler = entity.getClass().getMethod("getScheduler").invoke(entity);
-            CompatTask[] holder = new CompatTask[1];
-            Method execute = scheduler.getClass().getMethod("execute", Plugin.class, Runnable.class, Runnable.class, long.class);
-            execute.invoke(scheduler, plugin, (Runnable) () -> task.accept(holder[0]), null, Math.max(1L, delayTicks));
-            holder[0] = () -> {
-            };
-            return holder[0];
+            try {
+                Object foliaTask = scheduler.getClass()
+                        .getMethod("runDelayed", Plugin.class, Consumer.class, Runnable.class, long.class)
+                        .invoke(scheduler, plugin, (Consumer<Object>) rawTask -> task.accept(() -> cancel(rawTask)), null, Math.max(1L, delayTicks));
+                return () -> cancel(foliaTask);
+            } catch (NoSuchMethodException ignored) {
+                Method execute = scheduler.getClass().getMethod("execute", Plugin.class, Runnable.class, Runnable.class, long.class);
+                execute.invoke(scheduler, plugin, (Runnable) () -> task.accept(() -> {
+                }), null, Math.max(1L, delayTicks));
+                return () -> {
+                };
+            }
         } catch (ReflectiveOperationException ex) {
             throw new IllegalStateException("Failed to schedule entity task", ex);
         }

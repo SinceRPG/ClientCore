@@ -1,6 +1,7 @@
 package net.danh.clientcore.block;
 
 import org.bukkit.Registry;
+import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
@@ -74,6 +75,7 @@ final class BlockRuleLoader {
                         Math.max(0.0D, variant.getDouble("luck-multiplier", 1.0D)),
                         new HashSet<>(variant.getStringList("required-condition-ids")),
                         Math.max(1, variant.getInt("regen-ticks", section.getInt("regen-ticks", 100))),
+                        loadMining(variant, section),
                         variantDrops
                 ));
             }
@@ -87,6 +89,7 @@ final class BlockRuleLoader {
                         Math.max(0.0D, section.getDouble("luck-multiplier", 1.0D)),
                         new HashSet<>(section.getStringList("required-condition-ids")),
                         Math.max(1, section.getInt("regen-ticks", 100)),
+                        loadMining(section, null),
                         drops
                 ));
             }
@@ -100,5 +103,85 @@ final class BlockRuleLoader {
             ));
         }
         return rules;
+    }
+
+    private BlockMiningConfig loadMining(ConfigurationSection section, ConfigurationSection fallback) {
+        ConfigurationSection mining = section.getConfigurationSection("mining");
+        if (mining == null && fallback != null) {
+            mining = fallback.getConfigurationSection("mining");
+        }
+        if (mining == null) {
+            return new BlockMiningConfig("", 0, defaultFeedback(null), List.of());
+        }
+
+        String activeBlock = mining.getString("active-block", "BARRIER").toUpperCase(Locale.ROOT);
+        int defaultTime = Math.max(1, mining.getInt("default-time-ticks", mining.getInt("time-ticks", 0)));
+        BlockMiningFeedback feedback = defaultFeedback(mining.getConfigurationSection("feedback"));
+        List<BlockToolRule> tools = new ArrayList<>();
+        for (var value : mining.getMapList("tools")) {
+            ConfigurationSection tool = mining.createSection("__tool_" + tools.size(), value);
+            ConfigurationSection item = tool.getConfigurationSection("item");
+            ConfigurationSection source = item != null ? item : tool;
+            String type = source.getString("type", "vanilla").toLowerCase(Locale.ROOT);
+            Material material = Material.matchMaterial(source.getString("material", ""));
+            String mmoType = source.getString("mmo-type", source.getString("mmo_type"));
+            String mmoId = source.getString("mmo-id", source.getString("mmo_id"));
+
+            List<ConfigurationSection> toolDrops = new ArrayList<>();
+            for (var dropValue : tool.getMapList("drops")) {
+                ConfigurationSection drop = tool.createSection("__drop_" + toolDrops.size(), dropValue);
+                toolDrops.add(drop);
+            }
+
+            tools.add(new BlockToolRule(
+                    type,
+                    material,
+                    mmoType,
+                    mmoId,
+                    Math.max(1, tool.getInt("time-ticks", defaultTime)),
+                    toolDrops
+            ));
+        }
+        return new BlockMiningConfig(activeBlock, defaultTime, feedback, tools);
+    }
+
+    private BlockMiningFeedback defaultFeedback(ConfigurationSection section) {
+        if (section == null) {
+            return new BlockMiningFeedback(true, false, true, true, 4,
+                    "<gray>Mining <white>{progress}%</white>",
+                    "<bold>{bar}</bold> <white>{progress}%</white>",
+                    12,
+                    "<gold>",
+                    "<yellow>",
+                    "<green>",
+                    "<dark_gray>",
+                    0x8C0C1016);
+        }
+        return new BlockMiningFeedback(
+                section.getBoolean("display", true),
+                section.getBoolean("actionbar", false),
+                section.getBoolean("particles", true),
+                section.getBoolean("sounds", true),
+                Math.max(1, section.getInt("interval-ticks", 4)),
+                section.getString("message", "<gray>Mining <white>{progress}%</white>"),
+                section.getString("display-format", "<bold>{bar}</bold> <white>{progress}%</white>"),
+                Math.max(1, section.getInt("bar-length", 12)),
+                section.getString("low-color", "<gold>"),
+                section.getString("mid-color", "<yellow>"),
+                section.getString("high-color", "<green>"),
+                section.getString("empty-color", "<dark_gray>"),
+                parseColor(section.getString("background-argb", "8C0C1016"), 0x8C0C1016)
+        );
+    }
+
+    private int parseColor(String input, int fallback) {
+        if (input == null || input.isBlank()) {
+            return fallback;
+        }
+        try {
+            return (int) Long.parseLong(input.replace("#", ""), 16);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
     }
 }

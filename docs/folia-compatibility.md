@@ -19,9 +19,12 @@ Entity and player state changes must be made on the owning entity thread.
 
 Examples in this codebase:
 
-- Packet sends to players are routed through `ClientPacketService`, which schedules onto the player thread.
+- Virtual chest GUI opening is routed through the player entity scheduler.
+- Luck item command rewards modify inventories on the player entity thread.
 - Virtual drop pickup adds items to the player's inventory on the player thread.
 - Virtual mobs are removed through entity-thread scheduling.
+- Mining BlockDisplay/TextDisplay cleanup is routed through the display entity scheduler.
+- Player-only display visibility is routed through the viewer's player scheduler.
 - Packet filters use immutable mob snapshots instead of reading live entity locations from PacketEvents callbacks.
 
 ## Region rules
@@ -33,6 +36,7 @@ Examples in this codebase:
 - Real block restoration packets read `world.getBlockAt(...)` inside `scheduler.region(location, ...)`.
 - Client-side build save restores real blocks inside region tasks.
 - Entity spawning is called only after scheduling work on the target spawn location.
+- Mining visual BlockDisplay/TextDisplay entities are spawned on the target block region.
 
 ## Teleport rules
 
@@ -46,6 +50,10 @@ particles. It does not use direct NMS or CraftBukkit classes.
 
 PacketEvents callbacks are not treated as safe Bukkit entity access points. Packet filtering must use IDs and immutable
 snapshots owned by ClientCore.
+
+Client-side custom mining uses packet block changes for the hitbox block and Bukkit display entities for the visual
+overlay. Vanilla crack overlays cannot render on BlockDisplay entities, so ClientCore provides TextDisplay progress,
+particles, and sounds for the smooth BARRIER-based mining mode.
 
 ## I/O rules
 

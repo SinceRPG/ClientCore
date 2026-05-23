@@ -1,0 +1,62 @@
+name: Folia threading report
+description: Report a region-thread, entity-thread, scheduler, or Folia-only runtime issue.
+title: "[Folia]: "
+labels: [ "folia", "bug", "needs-triage" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when ClientCore throws Folia scheduler/thread ownership errors or behaves differently on Folia than on standard Paper.
+  - type: input
+    id: folia_version
+    attributes:
+      label: Folia version
+      placeholder: "Folia 1.21.x build ..."
+    validations:
+      required: true
+  - type: input
+    id: clientcore_version
+    attributes:
+      label: ClientCore version or commit
+      placeholder: "v1.0.0 or commit hash"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Scheduler/task cancellation
+        - Player/entity mutation
+        - Block/region access
+        - Entity spawning
+        - Inventory/GUI
+        - Packet/display visual
+        - Storage/I/O
+        - Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: stacktrace
+    attributes:
+      label: Stack trace or console output
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Configure ...
+        2. Join on Folia ...
+        3. Run ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: Paste the affected rule or setting only. Redact secrets.
+      render: yaml

@@ -15,6 +15,7 @@ import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
 import net.danh.clientcore.util.CompatTask;
 import net.danh.clientcore.util.FoliaScheduler;
+import net.danh.clientcore.util.Text;
 import org.bukkit.*;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
@@ -39,10 +40,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     private final ClientPacketService packets;
     private final LuckService luck;
     private final ClientBlockSupportService support;
+    private final MiningVisualService miningVisuals;
     private final ConditionEvaluator conditions;
     private final ConfigItemBuilder itemBuilder;
     private final Map<UUID, Set<String>> regenerating = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, Location>> visibleBlocks = new ConcurrentHashMap<>();
+    private final Map<UUID, MiningSession> miningSessions = new ConcurrentHashMap<>();
     private List<BlockRule> rules = List.of();
     private boolean enabled;
     private int refreshRadius;
@@ -57,6 +60,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         this.packets = packets;
         this.luck = luck;
         this.support = support;
+        this.miningVisuals = new MiningVisualService(plugin, scheduler);
         this.conditions = new ConditionEvaluator(hooks);
         this.itemBuilder = new ConfigItemBuilder(plugin, hooks);
         PacketEvents.getAPI().getEventManager().registerListener(this);
@@ -67,6 +71,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         this.refreshRadius = Math.max(1, configManager.getBlocks().getInt("block-regen.refresh-radius", 10));
         this.joinDelayTicks = Math.max(1L, configManager.getBlocks().getLong("block-regen.join-delay-ticks", 5L));
         this.rules = new BlockRuleLoader(plugin, configManager.getBlocks()).load();
+        cancelAllMining();
         if (refreshTask != null) {
             refreshTask.cancel();
         }
@@ -90,6 +95,8 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
         regenerating.clear();
         visibleBlocks.clear();
+        cancelAllMining();
+        miningVisuals.clearAll();
         if (refreshTask != null) {
             refreshTask.cancel();
             refreshTask = null;
@@ -120,7 +127,9 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             return;
 
         WrapperPlayClientPlayerDigging digging = new WrapperPlayClientPlayerDigging(event);
-        if (digging.getAction() != DiggingAction.FINISHED_DIGGING && digging.getAction() != DiggingAction.START_DIGGING)
+        if (digging.getAction() != DiggingAction.FINISHED_DIGGING
+                && digging.getAction() != DiggingAction.START_DIGGING
+                && digging.getAction() != DiggingAction.CANCELLED_DIGGING)
             return;
 
         Player player = (Player) event.getPlayer();
@@ -130,6 +139,9 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         int y = digging.getBlockPosition().getY();
         int z = digging.getBlockPosition().getZ();
         DiggingAction action = digging.getAction();
+        if (isVisibleCoordinate(player.getUniqueId(), x, y, z) && hasCustomMiningAt(player, x, y, z)) {
+            event.setCancelled(true);
+        }
 
         scheduler.entity(player, () -> handleDigPacket(player, action, x, y, z));
     }
@@ -138,17 +150,30 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (!player.isOnline()) return;
         Optional<BlockMatch> optionalMatch = ruleForLocation(player, x, y, z);
         if (optionalMatch.isEmpty()) return;
+        BlockMatch match = optionalMatch.get();
+        if (match.variant().mining().enabled()) {
+            if (action == DiggingAction.START_DIGGING) {
+                startCustomMining(player, match);
+            } else if (action == DiggingAction.CANCELLED_DIGGING) {
+                cancelMining(player, true);
+                sendCurrentVisualBlock(player, match);
+            } else if (action == DiggingAction.FINISHED_DIGGING) {
+                acknowledgeCurrentVisualDig(player, match, action, false);
+                sendCurrentVisualBlock(player, match);
+            }
+            return;
+        }
 
         // START_DIGGING is ignored for survival players so normal client break timing is preserved.
         if (action == DiggingAction.START_DIGGING && player.getGameMode() != GameMode.CREATIVE) {
             return;
         }
 
-        Location loc = optionalMatch.get().rule().location();
-        scheduler.region(loc, () -> handleBlockBreak(player, optionalMatch.get()));
+        Location loc = match.rule().location();
+        scheduler.region(loc, () -> handleBlockBreak(player, match, match.variant().drops()));
     }
 
-    private void handleBlockBreak(Player player, BlockMatch match) {
+    private void handleBlockBreak(Player player, BlockMatch match, List<ConfigurationSection> drops) {
         BlockRule rule = match.rule();
         BlockVariant variant = match.variant();
         Set<String> active = regenerating.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet());
@@ -158,16 +183,16 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
 
         BlockData cooldownData;
+        miningVisuals.clear(player);
         if ("ORIGINAL".equalsIgnoreCase(variant.cooldownBlock())) {
             cooldownData = rule.location().getWorld().getBlockAt(rule.location()).getBlockData();
         } else {
             Material mat = Material.matchMaterial(variant.cooldownBlock());
             cooldownData = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
         }
-        packets.sendBlock(player, rule.location(), cooldownData);
-        support.sendBlock(player, rule.location(), cooldownData);
+        sendBlockData(player, rule.location(), cooldownData);
 
-        scheduler.entity(player, () -> giveDrops(player, variant.drops()));
+        scheduler.entity(player, () -> giveDrops(player, drops));
 
         scheduler.regionLater(rule.location(), variant.regenTicks(), task -> {
             if (player.isOnline()) {
@@ -178,11 +203,205 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                     Material mat = Material.matchMaterial(variant.readyBlock());
                     finalData = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
                 }
-                packets.sendBlock(player, rule.location(), finalData);
-                support.sendBlock(player, rule.location(), finalData);
+                sendBlockData(player, rule.location(), finalData);
             }
             active.remove(rule.id());
         });
+    }
+
+    private void startCustomMining(Player player, BlockMatch match) {
+        if (regenerating.getOrDefault(player.getUniqueId(), Set.of()).contains(match.rule().id())) {
+            sendCurrentVisualBlock(player, match);
+            return;
+        }
+
+        Optional<BlockToolRule> tool = matchingTool(player, match.variant().mining());
+        if (tool.isEmpty() && !match.variant().mining().tools().isEmpty()) {
+            sendCurrentVisualBlock(player, match);
+            clearBreakAnimation(player, match.rule());
+            return;
+        }
+
+        MiningSession current = miningSessions.get(player.getUniqueId());
+        if (current != null && current.ruleId().equals(match.rule().id())) {
+            if (current.task() == null) {
+                resumeCustomMining(player, match, current);
+            }
+            return;
+        }
+        cancelMining(player, true);
+
+        int timeTicks = tool.map(BlockToolRule::timeTicks).orElse(match.variant().mining().defaultTimeTicks());
+        if (timeTicks <= 0) {
+            timeTicks = 1;
+        }
+        List<ConfigurationSection> drops = tool.filter(rule -> !rule.drops().isEmpty())
+                .map(BlockToolRule::drops)
+                .orElse(match.variant().drops());
+        int entityId = breakAnimationEntityId(player, match.rule());
+        MiningSession session = new MiningSession(match.rule().id(), match.rule().location(), tool.orElse(null), entityId, drops, timeTicks, 0, -1, null, null);
+        miningSessions.put(player.getUniqueId(), session);
+        miningVisuals.show(player, match.rule().location(), match.variant().readyBlock(), match.variant().mining().feedback());
+        sendCurrentVisualBlock(player, match);
+        resumeCustomMining(player, match, session);
+    }
+
+    private void resumeCustomMining(Player player, BlockMatch match, MiningSession session) {
+        if (session.timeoutTask() != null) {
+            session.timeoutTask().cancel();
+        }
+        if (session.tool() != null && !toolMatches(player.getInventory().getItemInMainHand(), session.tool())) {
+            cancelMining(player, true);
+            sendCurrentVisualBlock(player, match);
+            return;
+        }
+        CompatTask task = scheduler.regionTimer(match.rule().location(), 1L, 1L, ignored -> tickMining(player, match));
+        MiningSession stored = miningSessions.get(player.getUniqueId());
+        if (stored != null && stored.ruleId().equals(match.rule().id())) {
+            miningSessions.put(player.getUniqueId(), stored.withTask(task, null));
+        } else {
+            task.cancel();
+        }
+    }
+
+    private void pauseCustomMining(Player player, BlockMatch match) {
+        MiningSession session = miningSessions.get(player.getUniqueId());
+        if (session == null || !session.ruleId().equals(match.rule().id())) {
+            sendCurrentVisualBlock(player, match);
+            return;
+        }
+        if (session.task() != null) {
+            session.task().cancel();
+        }
+        miningVisuals.clear(player);
+        clearBreakAnimation(player, match.rule());
+        sendCurrentVisualBlock(player, match);
+
+        CompatTask timeout = scheduler.entityLater(player, 12L, task -> {
+            MiningSession stored = miningSessions.get(player.getUniqueId());
+            if (stored != null && stored.ruleId().equals(match.rule().id()) && stored.task() == null) {
+                cancelMining(player, true);
+                if (player.isOnline() && isVisible(player, match.rule())) {
+                    sendCurrentVisualBlock(player, match);
+                }
+            }
+        });
+        miningSessions.put(player.getUniqueId(), session.withTask(null, timeout));
+    }
+
+    private void tickMining(Player player, BlockMatch match) {
+        MiningSession session = miningSessions.get(player.getUniqueId());
+        if (session == null || !session.ruleId().equals(match.rule().id())) {
+            return;
+        }
+        if (!player.isOnline()
+                || player.getWorld() != match.rule().location().getWorld()
+                || player.getLocation().distanceSquared(match.rule().location()) > 36.0D
+                || !isVisible(player, match.rule())
+                || (session.tool() != null && !toolMatches(player.getInventory().getItemInMainHand(), session.tool()))) {
+            cancelMining(player, true);
+            if (player.isOnline() && isVisible(player, match.rule())) {
+                sendCurrentVisualBlock(player, match);
+            }
+            return;
+        }
+
+        int elapsed = session.elapsedTicks() + 1;
+        sendCurrentVisualBlock(player, match);
+        int progress = Math.min(100, (int) Math.floor(elapsed * 100.0D / session.timeTicks()));
+        miningVisuals.updateProgress(player, progress, match.variant().mining().feedback());
+        int stage = Math.min(9, (int) Math.floor((elapsed * 10.0D) / session.timeTicks()));
+        if (stage != session.stage()) {
+            packets.sendBlockBreakAnimation(player, match.rule().location(), session.animationEntityId(), stage);
+        }
+        sendMiningFeedback(player, match, session, elapsed, stage);
+
+        if (elapsed >= session.timeTicks()) {
+            miningSessions.remove(player.getUniqueId());
+            if (session.task() != null) {
+                session.task().cancel();
+            }
+            if (session.timeoutTask() != null) {
+                session.timeoutTask().cancel();
+            }
+            clearBreakAnimation(player, match.rule());
+            miningVisuals.clear(player);
+            handleBlockBreak(player, match, session.drops());
+            resendCurrentVisualBlock(player, match, 2L);
+            resendCurrentVisualBlock(player, match, 5L);
+            return;
+        }
+
+        miningSessions.put(player.getUniqueId(), session.withProgress(elapsed, stage));
+    }
+
+    private void sendMiningFeedback(Player player, BlockMatch match, MiningSession session, int elapsed, int stage) {
+        BlockMiningFeedback feedback = match.variant().mining().feedback();
+        int progress = Math.min(100, (int) Math.floor(elapsed * 100.0D / session.timeTicks()));
+        boolean intervalTick = elapsed == 1 || elapsed % feedback.intervalTicks() == 0;
+
+        if (feedback.actionBar() && intervalTick) {
+            player.sendActionBar(Text.mm(feedback.message().replace("{progress}", String.valueOf(progress))));
+        }
+
+        Location center = match.rule().location().toBlockLocation().add(0.5D, 0.5D, 0.5D);
+        if (feedback.particles() && intervalTick) {
+            player.spawnParticle(Particle.CRIT, center, 4, 0.28D, 0.28D, 0.28D, 0.01D);
+            if (progress >= 75) {
+                player.spawnParticle(Particle.DUST, center, 2, 0.22D, 0.22D, 0.22D, 0.0D, new Particle.DustOptions(Color.GRAY, 0.8F));
+            }
+        }
+
+        if (feedback.sounds() && (elapsed == 1 || stage != session.stage())) {
+            player.playSound(center, Sound.BLOCK_STONE_HIT, 0.35F, 0.75F + (stage * 0.035F));
+        }
+    }
+
+    private Optional<BlockToolRule> matchingTool(Player player, BlockMiningConfig mining) {
+        ItemStack item = player.getInventory().getItemInMainHand();
+        return mining.tools().stream().filter(rule -> toolMatches(item, rule)).findFirst();
+    }
+
+    private boolean toolMatches(ItemStack item, BlockToolRule rule) {
+        if ("any".equalsIgnoreCase(rule.type())) {
+            return true;
+        }
+        if ("mmoitems".equalsIgnoreCase(rule.type())) {
+            return hooks.mmoItemMatches(item, rule.mmoType(), rule.mmoId());
+        }
+        return rule.material() != null && item != null && item.getType() == rule.material();
+    }
+
+    private void cancelMining(Player player, boolean clearAnimation) {
+        MiningSession session = miningSessions.remove(player.getUniqueId());
+        if (session == null) {
+            return;
+        }
+        if (session.task() != null) {
+            session.task().cancel();
+        }
+        if (session.timeoutTask() != null) {
+            session.timeoutTask().cancel();
+        }
+        miningVisuals.clear(player);
+        if (clearAnimation) {
+            packets.sendBlockBreakAnimation(player, session.location(), session.animationEntityId(), -1);
+        }
+    }
+
+    private void cancelAllMining() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            cancelMining(player, true);
+        }
+        miningSessions.clear();
+    }
+
+    private void clearBreakAnimation(Player player, BlockRule rule) {
+        packets.sendBlockBreakAnimation(player, rule.location(), breakAnimationEntityId(player, rule), -1);
+    }
+
+    private int breakAnimationEntityId(Player player, BlockRule rule) {
+        return Objects.hash(player.getUniqueId(), rule.id(), rule.location().getBlockX(), rule.location().getBlockY(), rule.location().getBlockZ());
     }
 
     @EventHandler
@@ -207,9 +426,11 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        cancelMining(event.getPlayer(), false);
         regenerating.remove(event.getPlayer().getUniqueId());
         visibleBlocks.remove(event.getPlayer().getUniqueId());
         support.clear(event.getPlayer());
+        miningVisuals.clear(event.getPlayer());
     }
 
     public int ruleCount() {
@@ -245,7 +466,13 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
             if (shouldBeVisible) {
                 BlockVariant variant = chooseVariant(player, rule, conditions.evaluate(player, rule.condition(), rule.conditions()).passedOptionalIds());
-                String blockMaterial = isRegenerating ? variant.cooldownBlock() : variant.readyBlock();
+                MiningSession session = miningSessions.get(player.getUniqueId());
+                boolean isMining = session != null && session.ruleId().equals(rule.id());
+                String blockMaterial = isRegenerating
+                        ? variant.cooldownBlock()
+                        : isMining
+                        ? (variant.mining().activeBlock() == null || variant.mining().activeBlock().isBlank() ? "BARRIER" : variant.mining().activeBlock())
+                        : variant.readyBlock();
                 sendConfiguredBlock(player, loc, blockMaterial);
                 if (!isVisible) visible.put(rule.id(), loc);
 
@@ -275,8 +502,20 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
         Material mat = Material.matchMaterial(blockMaterial);
         BlockData data = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
+        sendBlockData(player, location, data);
+    }
+
+    private void sendBlockData(Player player, Location location, BlockData data) {
         packets.sendBlock(player, location, data);
         support.sendBlock(player, location, data);
+    }
+
+    private void resendCurrentVisualBlock(Player player, BlockMatch match, long delayTicks) {
+        scheduler.entityLater(player, delayTicks, task -> {
+            if (player.isOnline() && isVisible(player, match.rule())) {
+                sendCurrentVisualBlock(player, match);
+            }
+        });
     }
 
     private void sendRealBlock(Player player, Location location) {
@@ -305,6 +544,20 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         return false;
     }
 
+    private boolean hasCustomMiningAt(Player player, int x, int y, int z) {
+        for (BlockRule rule : rules) {
+            Location loc = rule.location();
+            if (loc.getBlockX() == x
+                    && loc.getBlockY() == y
+                    && loc.getBlockZ() == z
+                    && loc.getWorld() == player.getWorld()
+                    && rule.variants().stream().anyMatch(variant -> variant.mining().enabled())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void resendVisibleBlock(Player player, int x, int y, int z) {
         Optional<BlockMatch> match = ruleForLocation(player, x, y, z);
         match.ifPresent(thisMatch -> {
@@ -315,9 +568,36 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     }
 
     private void sendCurrentVisualBlock(Player player, BlockMatch match) {
+        sendConfiguredBlock(player, match.rule().location(), currentVisualBlock(player, match));
+    }
+
+    private void acknowledgeCurrentVisualDig(Player player, BlockMatch match, DiggingAction action, boolean successful) {
+        String blockMaterial = currentVisualBlock(player, match);
+        if ("ORIGINAL".equalsIgnoreCase(blockMaterial)) {
+            scheduler.region(match.rule().location(), () -> {
+                World world = match.rule().location().getWorld();
+                if (world != null && match.rule().location().isChunkLoaded()) {
+                    packets.acknowledgeDig(player, match.rule().location(), world.getBlockAt(match.rule().location()).getBlockData(), action, successful);
+                }
+            });
+            return;
+        }
+        Material mat = Material.matchMaterial(blockMaterial);
+        BlockData data = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
+        packets.acknowledgeDig(player, match.rule().location(), data, action, successful);
+    }
+
+    private String currentVisualBlock(Player player, BlockMatch match) {
         Set<String> activeRegen = regenerating.getOrDefault(player.getUniqueId(), Set.of());
-        String blockMaterial = activeRegen.contains(match.rule().id()) ? match.variant().cooldownBlock() : match.variant().readyBlock();
-        sendConfiguredBlock(player, match.rule().location(), blockMaterial);
+        if (activeRegen.contains(match.rule().id())) {
+            return match.variant().cooldownBlock();
+        }
+        MiningSession session = miningSessions.get(player.getUniqueId());
+        if (session != null && session.ruleId().equals(match.rule().id())) {
+            String activeBlock = match.variant().mining().activeBlock();
+            return activeBlock == null || activeBlock.isBlank() ? "BARRIER" : activeBlock;
+        }
+        return match.variant().readyBlock();
     }
 
     private Optional<BlockMatch> ruleForLocation(Player player, int x, int y, int z) {
@@ -382,9 +662,39 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                         });
             }
         }
-        if (!items.isEmpty()) player.give(items);
+        if (items.isEmpty()) {
+            return;
+        }
+        Map<Integer, ItemStack> leftovers = player.getInventory().addItem(items.toArray(ItemStack[]::new));
+        if (!leftovers.isEmpty()) {
+            Location dropLocation = player.getLocation();
+            for (ItemStack leftover : leftovers.values()) {
+                player.getWorld().dropItemNaturally(dropLocation, leftover);
+            }
+        }
     }
 
     private record BlockMatch(BlockRule rule, BlockVariant variant) {
+    }
+
+    private record MiningSession(
+            String ruleId,
+            Location location,
+            BlockToolRule tool,
+            int animationEntityId,
+            List<ConfigurationSection> drops,
+            int timeTicks,
+            int elapsedTicks,
+            int stage,
+            CompatTask task,
+            CompatTask timeoutTask
+    ) {
+        MiningSession withTask(CompatTask task, CompatTask timeoutTask) {
+            return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task, timeoutTask);
+        }
+
+        MiningSession withProgress(int elapsedTicks, int stage) {
+            return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task, timeoutTask);
+        }
     }
 }

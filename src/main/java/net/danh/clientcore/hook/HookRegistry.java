@@ -95,6 +95,10 @@ public final class HookRegistry {
         return MMOItemsHook.getItem(typeId, itemId);
     }
 
+    public boolean mmoItemMatches(ItemStack item, String typeId, String itemId) {
+        return mmoItems && MMOItemsHook.matches(item, typeId, itemId);
+    }
+
     public Optional<Entity> mythicMob(String mobId, Location location, double level) {
         if (!mythicMobs || mobId == null || mobId.isBlank()) return Optional.empty();
         return MythicMobsHook.spawn(mobId, location, level);

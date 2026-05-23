@@ -37,6 +37,44 @@ block-regen:
       conditions: [ ]
       # The amount of time in ticks it takes for the client-side block to visually "respawn".
       regen-ticks: 80
+      # Optional custom mining controller. When present, ClientCore controls break time server-side.
+      mining:
+        # Invisible hard hitbox sent while mining. A player-only BlockDisplay keeps the ready-block visual on top.
+        active-block: BARRIER
+        feedback:
+          display: true
+          actionbar: false
+          particles: true
+          sounds: true
+          interval-ticks: 4
+          message: "<gray>Mining <white>{progress}%</white>"
+          display-format: "<bold>{bar}</bold> <white>{progress}%</white>"
+          bar-length: 12
+          low-color: "<gold>"
+          mid-color: "<yellow>"
+          high-color: "<green>"
+          empty-color: "<dark_gray>"
+          background-argb: "8C0C1016"
+        default-time-ticks: 60
+        tools:
+          - item:
+              type: vanilla
+              material: WOODEN_PICKAXE
+            time-ticks: 80
+            drops:
+              - type: vanilla
+                material: COBBLESTONE
+                amount: 1
+          - item:
+              type: mmoitems
+              mmo-type: TOOL
+              mmo-id: STARTER_PICKAXE
+            time-ticks: 40
+            drops:
+              - type: mmoitems
+                mmo-type: MATERIAL
+                mmo-id: STARTER_STONE
+                material: STONE
       # Items that the player will physically receive into their inventory when mining.
       drops:
         - type: vanilla

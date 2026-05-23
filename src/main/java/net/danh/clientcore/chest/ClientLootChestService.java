@@ -132,7 +132,11 @@ public final class ClientLootChestService implements Listener {
                 for (ItemStack item : items) {
                     inv.addItem(item);
                 }
-                player.openInventory(inv);
+                scheduler.entity(player, () -> {
+                    if (player.isOnline()) {
+                        player.openInventory(inv);
+                    }
+                });
                 return;
             }
         }

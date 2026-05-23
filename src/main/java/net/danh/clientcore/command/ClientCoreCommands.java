@@ -377,14 +377,18 @@ public final class ClientCoreCommands {
                                                 }
                                                 int luckAmount = IntegerArgumentType.getInteger(context, "luck");
                                                 int itemAmount = IntegerArgumentType.getInteger(context, "amount");
-                                                int remaining = itemAmount;
-                                                while (remaining > 0) {
-                                                    var item = luckItems.build(player, luckAmount);
-                                                    int stack = Math.min(item.getMaxStackSize(), remaining);
-                                                    item.setAmount(stack);
-                                                    player.give(item);
-                                                    remaining -= stack;
-                                                }
+                                                plugin.scheduler().entity(player, () -> {
+                                                    if (!player.isOnline()) return;
+                                                    int remaining = itemAmount;
+                                                    while (remaining > 0) {
+                                                        var item = luckItems.build(player, luckAmount);
+                                                        int stack = Math.min(item.getMaxStackSize(), remaining);
+                                                        item.setAmount(stack);
+                                                        player.getInventory().addItem(item).values()
+                                                                .forEach(leftover -> player.getWorld().dropItemNaturally(player.getLocation(), leftover));
+                                                        remaining -= stack;
+                                                    }
+                                                });
                                                 Text.sendConfig(context.getSource().getSender(), config, "commands.luck-item-given",
                                                         "{amount}", String.valueOf(itemAmount), "{luck}", String.valueOf(luckAmount), "{player}", player.getName());
                                                 return 1;

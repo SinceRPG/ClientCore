@@ -7,6 +7,8 @@ loot, and persistence.
 ## Features
 
 - Client-side block regeneration with ready and cooldown block states.
+- Server-side custom mining for client-side blocks, including tool requirements, MMOItems tools, per-tool drops, and
+  TextDisplay progress bars.
 - Live client-side build capture with `/packetmode`, `/packetsave`, and `/packetapply`.
 - Player-specific loot chests that open virtual inventories.
 - Player-specific ground drops with cooldowns and protected pickup logic.
@@ -73,6 +75,9 @@ The wiki is in the `docs/` folder and can be published with the included GitHub 
 - [Conditions](docs/conditions.md)
 - [Commands](docs/commands.md)
 - [Blocks](docs/blocks.md)
+- [Folia Compatibility](docs/folia-compatibility.md)
+- [GitHub Actions Build](docs/github-actions.md)
+- [Changelog](CHANGELOG.md)
 - [Chests](docs/chests.md)
 - [Drops](docs/drops.md)
 - [Mobs](docs/mobs.md)
