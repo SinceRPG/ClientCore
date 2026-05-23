@@ -144,6 +144,13 @@ final class MiningVisualService {
         if (!entity.isValid()) {
             return;
         }
+        if (!plugin.isEnabled()) {
+            try {
+                entity.remove();
+            } catch (Exception ignored) {
+            }
+            return;
+        }
         scheduler.entity(entity, entity::remove);
     }
 

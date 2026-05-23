@@ -57,6 +57,10 @@ public final class FoliaScheduler {
     }
 
     public CompatTask entityLater(Entity entity, long delayTicks, Consumer<CompatTask> task) {
+        if (!plugin.isEnabled()) {
+            return () -> {
+            };
+        }
         if (!folia) {
             BukkitTask bukkitTask = Bukkit.getScheduler().runTaskLater(plugin, () -> task.accept(() -> {
             }), Math.max(1L, delayTicks));
@@ -82,6 +86,9 @@ public final class FoliaScheduler {
     }
 
     public void region(Location location, Runnable runnable) {
+        if (!plugin.isEnabled()) {
+            return;
+        }
         if (!folia) {
             Bukkit.getScheduler().runTask(plugin, runnable);
             return;
@@ -96,6 +103,10 @@ public final class FoliaScheduler {
     }
 
     public CompatTask regionLater(Location location, long delayTicks, Consumer<CompatTask> task) {
+        if (!plugin.isEnabled()) {
+            return () -> {
+            };
+        }
         if (!folia) {
             BukkitTask bukkitTask = Bukkit.getScheduler().runTaskLater(plugin, () -> task.accept(() -> {
             }), Math.max(1L, delayTicks));
@@ -113,6 +124,10 @@ public final class FoliaScheduler {
     }
 
     public CompatTask regionTimer(Location location, long delayTicks, long periodTicks, Consumer<CompatTask> task) {
+        if (!plugin.isEnabled()) {
+            return () -> {
+            };
+        }
         if (!folia) {
             BukkitTask bukkitTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> task.accept(() -> {
             }), Math.max(1L, delayTicks), Math.max(1L, periodTicks));
@@ -130,6 +145,10 @@ public final class FoliaScheduler {
     }
 
     public CompatTask globalTimer(long delayTicks, long periodTicks, Consumer<CompatTask> task) {
+        if (!plugin.isEnabled()) {
+            return () -> {
+            };
+        }
         if (!folia) {
             BukkitTask bukkitTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> task.accept(() -> {
             }), Math.max(1L, delayTicks), Math.max(1L, periodTicks));

@@ -66,10 +66,13 @@ public final class ClientBlockSupportService implements Listener {
             monitorTask.cancel();
             monitorTask = null;
         }
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            scheduler.entity(player, () -> restore(player));
+        if (plugin.isEnabled()) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                scheduler.entity(player, () -> restore(player));
+            }
         }
         solidBlocks.clear();
+        originalAllowFlight.clear();
     }
 
     public void sendBlock(Player player, Location location, BlockData blockData) {

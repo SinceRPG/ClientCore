@@ -359,7 +359,9 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
     private Optional<BlockToolRule> matchingTool(Player player, BlockMiningConfig mining) {
         ItemStack item = player.getInventory().getItemInMainHand();
-        return mining.tools().stream().filter(rule -> toolMatches(item, rule)).findFirst();
+        return mining.tools().stream()
+                .filter(rule -> toolMatches(item, rule))
+                .min(Comparator.comparingInt(this::toolMatchPriority));
     }
 
     private boolean toolMatches(ItemStack item, BlockToolRule rule) {
@@ -370,6 +372,16 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             return hooks.mmoItemMatches(item, rule.mmoType(), rule.mmoId());
         }
         return rule.material() != null && item != null && item.getType() == rule.material();
+    }
+
+    private int toolMatchPriority(BlockToolRule rule) {
+        if ("mmoitems".equalsIgnoreCase(rule.type())) {
+            return 0;
+        }
+        if ("any".equalsIgnoreCase(rule.type())) {
+            return 2;
+        }
+        return 1;
     }
 
     private void cancelMining(Player player, boolean clearAnimation) {
