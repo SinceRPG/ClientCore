@@ -76,7 +76,6 @@ The wiki is in the `docs/` folder and can be published with the included GitHub 
 - [Commands](docs/commands.md)
 - [Blocks](docs/blocks.md)
 - [Folia Compatibility](docs/folia-compatibility.md)
-- [GitHub Actions Build](docs/github-actions.md)
 - [Changelog](CHANGELOG.md)
 - [Chests](docs/chests.md)
 - [Drops](docs/drops.md)

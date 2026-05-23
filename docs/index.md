@@ -46,7 +46,6 @@ Optional integrations:
 - [Commands](commands.md)
 - [Client Builds](client-builds.md)
 - [Folia Compatibility](folia-compatibility.md)
-- [GitHub Actions Build](github-actions.md)
 - [Changelog](changelog.md)
 - [Blocks Regeneration](blocks.md)
 - [Loot Chests](chests.md)
