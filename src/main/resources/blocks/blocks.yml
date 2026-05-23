@@ -39,8 +39,13 @@ block-regen:
       regen-ticks: 80
       # Optional custom mining controller. When present, ClientCore controls break time server-side.
       mining:
-        # Invisible hard hitbox sent while mining. A player-only BlockDisplay keeps the ready-block visual on top.
+        # Hard hitbox block sent while mining.
         active-block: BARRIER
+        # block-display keeps the old smooth BARRIER + BlockDisplay overlay behavior.
+        # active-block uses the sent active-block itself as the visual, which is best when a
+        # resource pack or supported custom block plugin maps that state to a stone/ore/custom-block texture.
+        # Supported custom block prefixes: oraxen:<id>, itemsadder:<namespace:id>, nexo:<id>, craftengine:<namespace:id>.
+        visual-mode: block-display
         feedback:
           display: true
           actionbar: false

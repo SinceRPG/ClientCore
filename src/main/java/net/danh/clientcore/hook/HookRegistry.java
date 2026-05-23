@@ -8,11 +8,13 @@ import com.sk89q.worldguard.protection.flags.StateFlag;
 import me.clip.placeholderapi.PlaceholderAPI;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.plugin.CitizensHook;
+import net.danh.clientcore.hook.plugin.CustomBlockHook;
 import net.danh.clientcore.hook.plugin.FancyNpcsHook;
 import net.danh.clientcore.hook.plugin.MMOItemsHook;
 import net.danh.clientcore.hook.plugin.MythicMobsHook;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -31,6 +33,10 @@ public final class HookRegistry {
     private boolean modelEngine;
     private boolean citizens;
     private boolean fancyNpcs;
+    private boolean oraxen;
+    private boolean itemsAdder;
+    private boolean nexo;
+    private boolean craftEngine;
 
     public HookRegistry(Plugin plugin, ConfigManager config) {
         this.plugin = plugin;
@@ -46,6 +52,10 @@ public final class HookRegistry {
         this.modelEngine = enabled("modelengine") && Bukkit.getPluginManager().isPluginEnabled("ModelEngine");
         this.citizens = enabled("citizens") && Bukkit.getPluginManager().isPluginEnabled("Citizens");
         this.fancyNpcs = enabled("fancynpcs") && Bukkit.getPluginManager().isPluginEnabled("FancyNpcs");
+        this.oraxen = enabled("oraxen") && Bukkit.getPluginManager().isPluginEnabled("Oraxen");
+        this.itemsAdder = enabled("itemsadder") && Bukkit.getPluginManager().isPluginEnabled("ItemsAdder");
+        this.nexo = enabled("nexo") && Bukkit.getPluginManager().isPluginEnabled("Nexo");
+        this.craftEngine = enabled("craftengine") && Bukkit.getPluginManager().isPluginEnabled("CraftEngine");
     }
 
     private boolean enabled(String key) {
@@ -93,6 +103,10 @@ public final class HookRegistry {
     public Optional<ItemStack> mmoItem(String typeId, String itemId) {
         if (!mmoItems || typeId == null || itemId == null) return Optional.empty();
         return MMOItemsHook.getItem(typeId, itemId);
+    }
+
+    public Optional<BlockData> customBlockData(String configuredId) {
+        return CustomBlockHook.resolve(configuredId, oraxen, itemsAdder, nexo, craftEngine);
     }
 
     public boolean mmoItemMatches(ItemStack item, String typeId, String itemId) {

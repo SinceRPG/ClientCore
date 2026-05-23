@@ -10,6 +10,8 @@
 - Added per-tool rewards, including MMOItems reward support.
 - Added `active-block` for custom mining. `BARRIER` is recommended so the client does not break the visible block early.
 - Added player-only `BlockDisplay` overlays while custom mining is active, so players can still see the configured ready block.
+- Added `mining.visual-mode: active-block` for resource-pack/custom-block visuals that need vanilla crack overlays.
+- Added custom block ID resolution for active mining visuals through Oraxen, ItemsAdder, Nexo, and CraftEngine hooks.
 - Added player-only `TextDisplay` mining progress bars above active mining nodes.
 - Added configurable mining feedback:
   - `display`

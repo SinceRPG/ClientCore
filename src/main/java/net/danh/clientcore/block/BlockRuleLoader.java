@@ -111,10 +111,12 @@ final class BlockRuleLoader {
             mining = fallback.getConfigurationSection("mining");
         }
         if (mining == null) {
-            return new BlockMiningConfig("", 0, defaultFeedback(null), List.of());
+            return new BlockMiningConfig("", "BLOCK_DISPLAY", 0, defaultFeedback(null), List.of());
         }
 
-        String activeBlock = mining.getString("active-block", "BARRIER").toUpperCase(Locale.ROOT);
+        String activeBlock = mining.getString("active-block", "BARRIER");
+        String visualMode = normalizeVisualMode(mining.getString("visual-mode",
+                mining.getBoolean("active-block-visual", false) ? "ACTIVE_BLOCK" : "BLOCK_DISPLAY"));
         int defaultTime = Math.max(1, mining.getInt("default-time-ticks", mining.getInt("time-ticks", 0)));
         BlockMiningFeedback feedback = defaultFeedback(mining.getConfigurationSection("feedback"));
         List<BlockToolRule> tools = new ArrayList<>();
@@ -142,7 +144,21 @@ final class BlockRuleLoader {
                     toolDrops
             ));
         }
-        return new BlockMiningConfig(activeBlock, defaultTime, feedback, tools);
+        return new BlockMiningConfig(activeBlock, visualMode, defaultTime, feedback, tools);
+    }
+
+    private String normalizeVisualMode(String input) {
+        if (input == null || input.isBlank()) {
+            return "BLOCK_DISPLAY";
+        }
+        String normalized = input.trim()
+                .replace('-', '_')
+                .replace(' ', '_')
+                .toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "ACTIVE_BLOCK", "RESOURCE_PACK", "RESOURCE_PACK_BLOCK", "VANILLA_CRACK" -> "ACTIVE_BLOCK";
+            default -> "BLOCK_DISPLAY";
+        };
     }
 
     private BlockMiningFeedback defaultFeedback(ConfigurationSection section) {

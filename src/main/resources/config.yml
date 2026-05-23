@@ -76,3 +76,7 @@ hooks:
   modelengine: true    # Enables hiding ModelEngine render entities for client-side mobs.
   citizens: true       # Enables using Citizens for client-side NPCs.
   fancynpcs: true      # Enables using FancyNpcs for client-side NPCs.
+  oraxen: true         # Enables resolving Oraxen custom block IDs for packet block visuals.
+  itemsadder: true     # Enables resolving ItemsAdder custom block IDs for packet block visuals.
+  nexo: true           # Enables resolving Nexo custom block IDs for packet block visuals.
+  craftengine: true    # Enables resolving CraftEngine custom block IDs for packet block visuals where exposed by its API.

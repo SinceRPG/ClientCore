@@ -241,7 +241,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         int entityId = breakAnimationEntityId(player, match.rule());
         MiningSession session = new MiningSession(match.rule().id(), match.rule().location(), tool.orElse(null), entityId, drops, timeTicks, 0, -1, null, null);
         miningSessions.put(player.getUniqueId(), session);
-        miningVisuals.show(player, match.rule().location(), match.variant().readyBlock(), match.variant().mining().feedback());
+        miningVisuals.show(player, match.rule().location(), match.variant().readyBlock(), match.variant().mining().feedback(), match.variant().mining().blockDisplayOverlay());
         sendCurrentVisualBlock(player, match);
         resumeCustomMining(player, match, session);
     }
@@ -512,9 +512,16 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             sendRealBlock(player, location);
             return;
         }
+        sendBlockData(player, location, configuredBlockData(blockMaterial));
+    }
+
+    private BlockData configuredBlockData(String blockMaterial) {
+        Optional<BlockData> customData = hooks.customBlockData(blockMaterial);
+        if (customData.isPresent()) {
+            return customData.get();
+        }
         Material mat = Material.matchMaterial(blockMaterial);
-        BlockData data = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
-        sendBlockData(player, location, data);
+        return mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
     }
 
     private void sendBlockData(Player player, Location location, BlockData data) {
@@ -594,9 +601,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             });
             return;
         }
-        Material mat = Material.matchMaterial(blockMaterial);
-        BlockData data = mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
-        packets.acknowledgeDig(player, match.rule().location(), data, action, successful);
+        packets.acknowledgeDig(player, match.rule().location(), configuredBlockData(blockMaterial), action, successful);
     }
 
     private String currentVisualBlock(Player player, BlockMatch match) {

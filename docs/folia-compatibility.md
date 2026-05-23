@@ -51,9 +51,11 @@ particles. It does not use direct NMS or CraftBukkit classes.
 PacketEvents callbacks are not treated as safe Bukkit entity access points. Packet filtering must use IDs and immutable
 snapshots owned by ClientCore.
 
-Client-side custom mining uses packet block changes for the hitbox block and Bukkit display entities for the visual
-overlay. Vanilla crack overlays cannot render on BlockDisplay entities, so ClientCore provides TextDisplay progress,
-particles, and sounds for the smooth BARRIER-based mining mode.
+Client-side custom mining uses packet block changes for the hitbox block and can use Bukkit display entities for the
+visual overlay. Vanilla crack overlays cannot render on BlockDisplay entities, so ClientCore provides TextDisplay
+progress, particles, and sounds for the smooth BARRIER-based `visual-mode: block-display` mode. When
+`visual-mode: active-block` is enabled, no ready-block BlockDisplay is spawned; the client sees and cracks the sent
+active block state directly.
 
 ## I/O rules
 

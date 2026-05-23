@@ -28,6 +28,18 @@ dependencies:
     Citizens:
       load: BEFORE
       required: false
+    Oraxen:
+      load: BEFORE
+      required: false
+    ItemsAdder:
+      load: BEFORE
+      required: false
+    Nexo:
+      load: BEFORE
+      required: false
+    CraftEngine:
+      load: BEFORE
+      required: false
 permissions:
   clientcore.admin:
     default: op

@@ -28,30 +28,40 @@ final class MiningVisualService {
         this.scheduler = scheduler;
     }
 
-    void show(Player player, Location location, String blockMaterial, BlockMiningFeedback feedback) {
+    void show(Player player, Location location, String blockMaterial, BlockMiningFeedback feedback, boolean blockOverlay) {
         clear(player);
-        if ("ORIGINAL".equalsIgnoreCase(blockMaterial)) {
+        if (!blockOverlay && !feedback.display()) {
             return;
         }
-        Material material = Material.matchMaterial(blockMaterial);
-        if (material == null || material.isAir()) {
+        if (blockOverlay && "ORIGINAL".equalsIgnoreCase(blockMaterial)) {
             return;
         }
-        BlockData data = Bukkit.createBlockData(material);
+        BlockData data = null;
+        if (blockOverlay) {
+            Material material = Material.matchMaterial(blockMaterial);
+            if (material == null || material.isAir()) {
+                return;
+            }
+            data = Bukkit.createBlockData(material);
+        }
         Location spawn = location.toBlockLocation();
+        BlockData finalData = data;
         scheduler.region(spawn, () -> {
             if (!player.isOnline()) {
                 return;
             }
-            BlockDisplay display = (BlockDisplay) spawn.getWorld().spawnEntity(spawn, EntityType.BLOCK_DISPLAY);
-            display.setPersistent(false);
-            display.setInvulnerable(true);
-            display.setGravity(false);
-            display.setBlock(data);
-            display.setViewRange(32.0F);
-            display.setShadowRadius(0.0F);
-            display.setShadowStrength(0.0F);
-            display.setVisibleByDefault(false);
+            BlockDisplay display = null;
+            if (blockOverlay) {
+                display = (BlockDisplay) spawn.getWorld().spawnEntity(spawn, EntityType.BLOCK_DISPLAY);
+                display.setPersistent(false);
+                display.setInvulnerable(true);
+                display.setGravity(false);
+                display.setBlock(finalData);
+                display.setViewRange(32.0F);
+                display.setShadowRadius(0.0F);
+                display.setShadowStrength(0.0F);
+                display.setVisibleByDefault(false);
+            }
 
             TextDisplay text = null;
             if (feedback.display()) {
@@ -73,15 +83,20 @@ final class MiningVisualService {
             }
 
             TextDisplay progressText = text;
+            BlockDisplay blockDisplay = display;
             scheduler.entity(player, () -> {
                 if (!player.isOnline()) {
-                    remove(display);
+                    if (blockDisplay != null) {
+                        remove(blockDisplay);
+                    }
                     if (progressText != null) {
                         remove(progressText);
                     }
                     return;
                 }
-                player.showEntity(plugin, display);
+                if (blockDisplay != null) {
+                    player.showEntity(plugin, blockDisplay);
+                }
                 if (progressText != null) {
                     player.showEntity(plugin, progressText);
                 }
@@ -89,7 +104,9 @@ final class MiningVisualService {
 
             MiningVisuals previous = displays.put(player.getUniqueId(), new MiningVisuals(display, text));
             if (previous != null && previous.isValid()) {
-                remove(previous.block());
+                if (previous.block() != null) {
+                    remove(previous.block());
+                }
                 if (previous.text() != null) {
                     remove(previous.text());
                 }
@@ -113,7 +130,9 @@ final class MiningVisualService {
         if (visuals == null) {
             return;
         }
-        remove(visuals.block());
+        if (visuals.block() != null) {
+            remove(visuals.block());
+        }
         if (visuals.text() != null) {
             remove(visuals.text());
         }
@@ -121,7 +140,9 @@ final class MiningVisualService {
 
     void clearAll() {
         for (MiningVisuals visuals : displays.values()) {
-            remove(visuals.block());
+            if (visuals.block() != null) {
+                remove(visuals.block());
+            }
             if (visuals.text() != null) {
                 remove(visuals.text());
             }
@@ -156,7 +177,7 @@ final class MiningVisualService {
 
     private record MiningVisuals(BlockDisplay block, TextDisplay text) {
         boolean isValid() {
-            return block.isValid() || (text != null && text.isValid());
+            return (block != null && block.isValid()) || (text != null && text.isValid());
         }
     }
 }

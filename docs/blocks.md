@@ -123,6 +123,7 @@ material timing. If `tools` is set, only matching tools can mine the node.
 ```yaml
 mining:
   active-block: BARRIER
+  visual-mode: block-display
   feedback:
     display: true
     actionbar: false
@@ -162,9 +163,36 @@ mining:
 Tool drops override the variant/rule `drops`. If a matching tool has no `drops`, ClientCore uses the normal
 variant/rule drops.
 
-`active-block` is the hitbox block sent while the player is actively mining. `BARRIER` is recommended because it is
-hard to break and normally invisible; ClientCore renders a player-only `BlockDisplay` with the ready block on top while
-the custom mining timer is active.
+`active-block` is the hitbox block sent while the player is actively mining.
+
+`visual-mode` controls what the player sees while the custom mining timer is active:
+
+- `block-display` is the default and preserves the old behavior. `BARRIER` is recommended because it is hard to break
+  and normally invisible; ClientCore renders a player-only `BlockDisplay` with the ready block on top.
+- `active-block` uses the sent `active-block` itself as the visual block and does not spawn the ready-block
+  `BlockDisplay`. Use this with a resource pack that remaps a hard block or block state to your stone/ore/custom-block
+  texture. Because the client is mining a real block state, vanilla crack overlays render on that texture.
+
+Aliases accepted for `active-block` mode: `resource-pack`, `resource-pack-block`, and `vanilla-crack`.
+
+ClientCore can also resolve custom block IDs directly when the matching plugin is installed and its hook is enabled:
+
+```yaml
+mining:
+  active-block: oraxen:amethyst_ore
+  visual-mode: active-block
+```
+
+Supported prefixes:
+
+- `oraxen:<id>`
+- `itemsadder:<namespace:id>`
+- `nexo:<id>`
+- `craftengine:<namespace:id>`
+
+The resolver asks the custom block plugin for the block state it uses in-game, then sends that state as the active
+mining block. This works for normal block-state based custom blocks. Furniture/entity-based custom blocks cannot use
+vanilla crack overlays because the client is not mining a real block state.
 
 `feedback` adds non-vanilla progress feedback for the `BARRIER + BlockDisplay` mode. `display` creates a player-only
 `TextDisplay` progress bar above the block, and particles/sounds provide extra local feedback while the server-side
