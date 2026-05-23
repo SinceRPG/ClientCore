@@ -8,7 +8,7 @@ nav_order: 14
 
 The canonical changelog is maintained at the repository root:
 
-[CHANGELOG.md](../CHANGELOG.md)
+[CHANGELOG.md](https://github.com/SinceRPG/ClientCore/blob/master/CHANGELOG.md)
 
 ## Current Development Highlights
 
