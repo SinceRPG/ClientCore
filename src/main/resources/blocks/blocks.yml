@@ -139,3 +139,135 @@ block-regen:
             - type: vanilla
               material: EMERALD
               amount: 2
+
+    # Example 3: Client-side farming node. Players right-click the fake crop to harvest it.
+    wheat-farm:
+      enabled: true
+      location:
+        world: world
+        x: 20
+        y: 65
+        z: 20
+      ready-block: WHEAT
+      cooldown-block: FARMLAND
+      regen-ticks: 200
+      farming:
+        enabled: true
+        # Optional growth stages. While growing, players can harvest the current stage and receive that stage's drops.
+        # Block data strings such as WHEAT[age=3] are supported.
+        # Common max ages:
+        # WHEAT/CARROTS/POTATOES: 7
+        # BEETROOTS/NETHER_WART/SWEET_BERRY_BUSH: 3
+        # COCOA: 2
+        # TORCHFLOWER_CROP: 1
+        # PITCHER_CROP: 4
+        # CACTUS/SUGAR_CANE: 15
+        # KELP/CAVE_VINES: 25
+        stages:
+          - block: WHEAT[age=0]
+            after-ticks: 1
+            drops:
+              - type: vanilla
+                material: WHEAT_SEEDS
+                amount: 1
+          - block: WHEAT[age=3]
+            after-ticks: 80
+            drops:
+              - type: vanilla
+                material: WHEAT_SEEDS
+                amount: 2
+          - block: WHEAT[age=7]
+            after-ticks: 120
+            drops:
+              - type: vanilla
+                material: WHEAT
+                amount: 2
+              - type: vanilla
+                material: WHEAT_SEEDS
+                amount: 1
+        tools:
+          - item:
+              type: vanilla
+              material: WOODEN_HOE
+      drops:
+        - type: vanilla
+          material: WHEAT
+          amount: 1
+
+    # Example 4: Beetroot-style crop. BEETROOTS max age is 3.
+    beetroot-farm:
+      enabled: false
+      location:
+        world: world
+        x: 21
+        y: 65
+        z: 20
+      ready-block: BEETROOTS
+      cooldown-block: FARMLAND
+      regen-ticks: 200
+      farming:
+        enabled: true
+        stages:
+          - block: BEETROOTS[age=0]
+            after-ticks: 1
+            drops:
+              - type: vanilla
+                material: BEETROOT_SEEDS
+                amount: 1
+          - block: BEETROOTS[age=1]
+            after-ticks: 80
+            drops:
+              - type: vanilla
+                material: BEETROOT_SEEDS
+                amount: 2
+          - block: BEETROOTS[age=3]
+            after-ticks: 120
+            drops:
+              - type: vanilla
+                material: BEETROOT
+                amount: 2
+        tools:
+          - item:
+              type: vanilla
+              material: WOODEN_HOE
+      drops:
+        - type: vanilla
+          material: BEETROOT
+          amount: 1
+
+    # Example 5: Cocoa-style crop. COCOA max age is 2 and needs facing.
+    cocoa-farm:
+      enabled: false
+      location:
+        world: world
+        x: 22
+        y: 65
+        z: 20
+      ready-block: COCOA[age=2,facing=north]
+      cooldown-block: COCOA[age=0,facing=north]
+      regen-ticks: 200
+      farming:
+        enabled: true
+        stages:
+          - block: COCOA[age=0,facing=north]
+            after-ticks: 1
+            drops:
+              - type: vanilla
+                material: COCOA_BEANS
+                amount: 1
+          - block: COCOA[age=1,facing=north]
+            after-ticks: 80
+            drops:
+              - type: vanilla
+                material: COCOA_BEANS
+                amount: 2
+          - block: COCOA[age=2,facing=north]
+            after-ticks: 120
+            drops:
+              - type: vanilla
+                material: COCOA_BEANS
+                amount: 3
+      drops:
+        - type: vanilla
+          material: COCOA_BEANS
+          amount: 1

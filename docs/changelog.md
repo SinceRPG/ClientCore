@@ -12,6 +12,7 @@ The canonical changelog is maintained at the repository root:
 
 ## Current Development Highlights
 
+- Client-side farming nodes with right-click harvest support.
 - Custom client-side block mining with server-side timing.
 - Vanilla and MMOItems tool requirements.
 - Tool-specific drops and MMOItems rewards.

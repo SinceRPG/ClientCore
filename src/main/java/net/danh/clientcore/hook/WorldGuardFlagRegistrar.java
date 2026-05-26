@@ -14,8 +14,12 @@ public final class WorldGuardFlagRegistrar {
     }
 
     public static void register(Plugin plugin, ConfigManager configManager) {
+        registerFlag(plugin, configManager, CLIENTCORE_REGEN);
+    }
+
+    private static void registerFlag(Plugin plugin, ConfigManager configManager, StateFlag flag) {
         try {
-            WorldGuard.getInstance().getFlagRegistry().register(CLIENTCORE_REGEN);
+            WorldGuard.getInstance().getFlagRegistry().register(flag);
         } catch (FlagConflictException ignored) {
             Text.log(plugin, configManager, "console.wg-flag-exists");
         }

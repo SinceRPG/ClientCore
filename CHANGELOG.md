@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added client-side farming nodes under block regen through `farming`, including right-click harvest, optional tool requirements, and tool-specific drops.
+- Added farming growth stages with block age/data support such as `WHEAT[age=3]`, stage timing, and stage-specific early harvest drops.
 - Added custom client-side block mining rules under `mining`.
 - Added per-tool mining requirements for vanilla tools and MMOItems tools.
 - Added per-tool mining durations through `time-ticks`.

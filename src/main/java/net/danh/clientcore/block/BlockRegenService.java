@@ -46,6 +46,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     private final Map<UUID, Set<String>> regenerating = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, Location>> visibleBlocks = new ConcurrentHashMap<>();
     private final Map<UUID, MiningSession> miningSessions = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<String, FarmingState>> farmingStates = new ConcurrentHashMap<>();
     private List<BlockRule> rules = List.of();
     private boolean enabled;
     private int refreshRadius;
@@ -72,6 +73,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         this.joinDelayTicks = Math.max(1L, configManager.getBlocks().getLong("block-regen.join-delay-ticks", 5L));
         this.rules = new BlockRuleLoader(plugin, configManager.getBlocks()).load();
         cancelAllMining();
+        cancelAllFarmingGrowth();
         if (refreshTask != null) {
             refreshTask.cancel();
         }
@@ -96,6 +98,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         regenerating.clear();
         visibleBlocks.clear();
         cancelAllMining();
+        cancelAllFarmingGrowth();
         miningVisuals.clearAll();
         if (refreshTask != null) {
             refreshTask.cancel();
@@ -119,7 +122,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             if (!isVisibleCoordinate(player.getUniqueId(), x, y, z)) return;
 
             event.setCancelled(true);
-            scheduler.entity(player, () -> resendVisibleBlock(player, x, y, z));
+            scheduler.entity(player, () -> handleUsePacket(player, x, y, z));
             return;
         }
 
@@ -207,6 +210,120 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             }
             active.remove(rule.id());
         });
+    }
+
+    private void handleUsePacket(Player player, int x, int y, int z) {
+        Optional<BlockMatch> match = ruleForLocation(player, x, y, z);
+        if (match.isEmpty() || !isVisible(player, match.get().rule())) {
+            return;
+        }
+        if (match.get().variant().farming().enabled()) {
+            handleFarming(player, match.get());
+            return;
+        }
+        sendCurrentVisualBlock(player, match.get());
+    }
+
+    private void handleFarming(Player player, BlockMatch match) {
+        Optional<BlockToolRule> tool = matchingTool(player, match.variant().farming().tools());
+        if (tool.isEmpty() && !match.variant().farming().tools().isEmpty()) {
+            sendCurrentVisualBlock(player, match);
+            return;
+        }
+
+        List<ConfigurationSection> stageDrops = farmingStageDrops(player, match);
+        List<ConfigurationSection> drops = tool.filter(rule -> !rule.drops().isEmpty())
+                .map(BlockToolRule::drops)
+                .orElse(stageDrops.isEmpty() ? match.variant().drops() : stageDrops);
+        cancelMining(player, true);
+        if (match.variant().farming().stages().isEmpty()) {
+            scheduler.region(match.rule().location(), () -> handleBlockBreak(player, match, drops));
+            return;
+        }
+        scheduler.region(match.rule().location(), () -> {
+            miningVisuals.clear(player);
+            sendBlockData(player, match.rule().location(), farmingStageBlockData(match, 0));
+            scheduler.entity(player, () -> giveDrops(player, drops));
+            startFarmingGrowth(player, match);
+        });
+    }
+
+    private List<ConfigurationSection> farmingStageDrops(Player player, BlockMatch match) {
+        List<BlockFarmingStage> stages = match.variant().farming().stages();
+        if (stages.isEmpty()) {
+            return List.of();
+        }
+        FarmingState state = farmingState(player, match.rule().id());
+        int index = state == null ? stages.size() - 1 : Math.max(0, Math.min(state.stageIndex(), stages.size() - 1));
+        return stages.get(index).drops();
+    }
+
+    private void startFarmingGrowth(Player player, BlockMatch match) {
+        List<BlockFarmingStage> stages = match.variant().farming().stages();
+        if (stages.isEmpty()) {
+            return;
+        }
+        cancelFarmingGrowth(player.getUniqueId(), match.rule().id());
+        FarmingState state = new FarmingState(0, new ArrayList<>());
+        farmingStates.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>()).put(match.rule().id(), state);
+        scheduleFarmingStage(player, match, 1);
+    }
+
+    private void scheduleFarmingStage(Player player, BlockMatch match, int nextIndex) {
+        List<BlockFarmingStage> stages = match.variant().farming().stages();
+        if (nextIndex >= stages.size()) {
+            return;
+        }
+        BlockFarmingStage next = stages.get(nextIndex);
+        CompatTask task = scheduler.regionLater(match.rule().location(), next.afterTicks(), ignored -> {
+            FarmingState current = farmingState(player, match.rule().id());
+            if (current == null || !player.isOnline()) {
+                return;
+            }
+            farmingStates.computeIfAbsent(player.getUniqueId(), key -> new ConcurrentHashMap<>())
+                    .put(match.rule().id(), current.withStage(nextIndex));
+            if (isVisible(player, match.rule())) {
+                sendBlockData(player, match.rule().location(), farmingStageBlockData(match, nextIndex));
+            }
+            scheduleFarmingStage(player, match, nextIndex + 1);
+        });
+        FarmingState current = farmingState(player, match.rule().id());
+        if (current != null) {
+            current.tasks().add(task);
+        } else {
+            task.cancel();
+        }
+    }
+
+    private BlockData farmingStageBlockData(BlockMatch match, int stageIndex) {
+        List<BlockFarmingStage> stages = match.variant().farming().stages();
+        if (stages.isEmpty()) {
+            return configuredBlockData(match.variant().cooldownBlock());
+        }
+        String block = stages.get(Math.max(0, Math.min(stageIndex, stages.size() - 1))).block();
+        if (block == null || block.isBlank()) {
+            block = stageIndex == stages.size() - 1 ? match.variant().readyBlock() : match.variant().cooldownBlock();
+        }
+        return configuredBlockData(block);
+    }
+
+    private FarmingState farmingState(Player player, String ruleId) {
+        Map<String, FarmingState> states = farmingStates.get(player.getUniqueId());
+        return states == null ? null : states.get(ruleId);
+    }
+
+    private void cancelFarmingGrowth(UUID playerId, String ruleId) {
+        Map<String, FarmingState> states = farmingStates.get(playerId);
+        if (states == null) {
+            return;
+        }
+        FarmingState state = states.remove(ruleId);
+        if (state != null) {
+            state.tasks().forEach(CompatTask::cancel);
+        }
+        if (states.isEmpty()) {
+            farmingStates.remove(playerId);
+        }
     }
 
     private void startCustomMining(Player player, BlockMatch match) {
@@ -358,8 +475,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     }
 
     private Optional<BlockToolRule> matchingTool(Player player, BlockMiningConfig mining) {
+        return matchingTool(player, mining.tools());
+    }
+
+    private Optional<BlockToolRule> matchingTool(Player player, List<BlockToolRule> tools) {
         ItemStack item = player.getInventory().getItemInMainHand();
-        return mining.tools().stream()
+        return tools.stream()
                 .filter(rule -> toolMatches(item, rule))
                 .min(Comparator.comparingInt(this::toolMatchPriority));
     }
@@ -408,6 +529,15 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         miningSessions.clear();
     }
 
+    private void cancelAllFarmingGrowth() {
+        for (Map<String, FarmingState> states : farmingStates.values()) {
+            for (FarmingState state : states.values()) {
+                state.tasks().forEach(CompatTask::cancel);
+            }
+        }
+        farmingStates.clear();
+    }
+
     private void clearBreakAnimation(Player player, BlockRule rule) {
         packets.sendBlockBreakAnimation(player, rule.location(), breakAnimationEntityId(player, rule), -1);
     }
@@ -427,6 +557,10 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (match.isEmpty() || !isVisible(player, match.get().rule())) return;
 
         event.setCancelled(true);
+        if (match.get().variant().farming().enabled()) {
+            handleFarming(player, match.get());
+            return;
+        }
         sendCurrentVisualBlock(player, match.get());
     }
 
@@ -440,6 +574,10 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     public void onQuit(PlayerQuitEvent event) {
         cancelMining(event.getPlayer(), false);
         regenerating.remove(event.getPlayer().getUniqueId());
+        Map<String, FarmingState> states = farmingStates.remove(event.getPlayer().getUniqueId());
+        if (states != null) {
+            states.values().forEach(state -> state.tasks().forEach(CompatTask::cancel));
+        }
         visibleBlocks.remove(event.getPlayer().getUniqueId());
         support.clear(event.getPlayer());
         miningVisuals.clear(event.getPlayer());
@@ -480,6 +618,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                 BlockVariant variant = chooseVariant(player, rule, conditions.evaluate(player, rule.condition(), rule.conditions()).passedOptionalIds());
                 MiningSession session = miningSessions.get(player.getUniqueId());
                 boolean isMining = session != null && session.ruleId().equals(rule.id());
+                FarmingState farmingState = farmingState(player, rule.id());
+                if (farmingState != null && variant.farming().enabled() && !variant.farming().stages().isEmpty()) {
+                    sendBlockData(player, loc, farmingStageBlockData(new BlockMatch(rule, variant), farmingState.stageIndex()));
+                    if (!isVisible) visible.put(rule.id(), loc);
+                    continue;
+                }
                 String blockMaterial = isRegenerating
                         ? variant.cooldownBlock()
                         : isMining
@@ -520,8 +664,27 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (customData.isPresent()) {
             return customData.get();
         }
+        if (blockMaterial != null && blockMaterial.contains("[")) {
+            try {
+                return Bukkit.createBlockData(normalizeBlockDataString(blockMaterial));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
         Material mat = Material.matchMaterial(blockMaterial);
         return mat != null ? Bukkit.createBlockData(mat) : Bukkit.createBlockData(Material.AIR);
+    }
+
+    private String normalizeBlockDataString(String input) {
+        String trimmed = input.trim();
+        int properties = trimmed.indexOf('[');
+        if (properties <= 0) {
+            return trimmed.toLowerCase(Locale.ROOT);
+        }
+        String material = trimmed.substring(0, properties).toLowerCase(Locale.ROOT);
+        if (!material.contains(":")) {
+            material = "minecraft:" + material;
+        }
+        return material + trimmed.substring(properties).toLowerCase(Locale.ROOT);
     }
 
     private void sendBlockData(Player player, Location location, BlockData data) {
@@ -613,6 +776,10 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (session != null && session.ruleId().equals(match.rule().id())) {
             String activeBlock = match.variant().mining().activeBlock();
             return activeBlock == null || activeBlock.isBlank() ? "BARRIER" : activeBlock;
+        }
+        FarmingState farmingState = farmingState(player, match.rule().id());
+        if (farmingState != null && match.variant().farming().enabled() && !match.variant().farming().stages().isEmpty()) {
+            return match.variant().farming().stages().get(Math.max(0, Math.min(farmingState.stageIndex(), match.variant().farming().stages().size() - 1))).block();
         }
         return match.variant().readyBlock();
     }
@@ -712,6 +879,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
         MiningSession withProgress(int elapsedTicks, int stage) {
             return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task, timeoutTask);
+        }
+    }
+
+    private record FarmingState(int stageIndex, List<CompatTask> tasks) {
+        FarmingState withStage(int stageIndex) {
+            return new FarmingState(stageIndex, tasks);
         }
     }
 }

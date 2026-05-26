@@ -97,6 +97,7 @@ conditions: optional list of semicolon conditions
 worldguard-flag: overrides the default flag for this rule
 regen-ticks: cooldown duration
 mining: optional custom break time, tool requirements, and tool-specific drops
+farming: optional right-click harvest support, tool requirements, and tool-specific drops
 drops: rewards given directly to the player
 variants: optional weighted variants
 ```
@@ -197,6 +198,130 @@ vanilla crack overlays because the client is not mining a real block state.
 `feedback` adds non-vanilla progress feedback for the `BARRIER + BlockDisplay` mode. `display` creates a player-only
 `TextDisplay` progress bar above the block, and particles/sounds provide extra local feedback while the server-side
 mining timer is running.
+
+## Farming
+
+Add `farming` to a rule or variant when the node should be harvested by right-click instead of being mined. Farming uses
+the same visibility, conditions, variants, cooldown, regen, WorldGuard flag, direct inventory rewards, MMOItems rewards,
+and tool matching behavior as mining. Optional `stages` let crops grow through visible block ages over time and provide
+stage-specific early harvest rewards.
+
+```yaml
+wheat-farm:
+  enabled: true
+  location:
+    world: world
+    x: 20
+    y: 65
+    z: 20
+  ready-block: WHEAT
+  cooldown-block: FARMLAND
+  regen-ticks: 200
+  farming:
+    enabled: true
+    stages:
+      - block: WHEAT[age=0]
+        after-ticks: 1
+        drops:
+          - type: vanilla
+            material: WHEAT_SEEDS
+            amount: 1
+      - block: WHEAT[age=3]
+        after-ticks: 80
+        drops:
+          - type: vanilla
+            material: WHEAT_SEEDS
+            amount: 2
+      - block: WHEAT[age=7]
+        after-ticks: 120
+        drops:
+          - type: vanilla
+            material: WHEAT
+            amount: 2
+    tools:
+      - item:
+          type: vanilla
+          material: WOODEN_HOE
+  drops:
+    - type: vanilla
+      material: WHEAT
+      amount: 1
+```
+
+If `tools` is set, only matching tools can harvest the node. Tool drops override the variant/rule `drops`; if the
+matching tool has no `drops`, ClientCore uses the normal variant/rule drops.
+
+If `stages` is set, stage drops are used before the normal variant/rule `drops`. Players can harvest at any stage:
+stage `WHEAT[age=3]` can give one reward, while the final mature stage `WHEAT[age=7]` can give wheat. `after-ticks`
+is the delay before that stage appears after the previous stage. The first stage is sent immediately after harvest.
+
+Supported stage block formats:
+
+```yaml
+block: WHEAT[age=3]
+```
+
+or:
+
+```yaml
+material: WHEAT
+age: 3
+```
+
+### Common Farm Ages
+
+Use the crop's max age as the final mature stage. These are common vanilla block data ages:
+
+```text
+WHEAT: 0-7
+CARROTS: 0-7
+POTATOES: 0-7
+BEETROOTS: 0-3
+NETHER_WART: 0-3
+COCOA: 0-2
+SWEET_BERRY_BUSH: 0-3
+CAVE_VINES: 0-25
+CAVE_VINES_PLANT: 0-25
+KELP: 0-25
+KELP_PLANT: 0-25
+CACTUS: 0-15
+SUGAR_CANE: 0-15
+BAMBOO: 0-1
+TORCHFLOWER_CROP: 0-1
+PITCHER_CROP: 0-4
+CHORUS_FLOWER: 0-5
+```
+
+Examples:
+
+```yaml
+# Wheat/carrot/potato, max age 7
+stages:
+  - block: WHEAT[age=0]
+    after-ticks: 1
+  - block: WHEAT[age=3]
+    after-ticks: 80
+  - block: WHEAT[age=7]
+    after-ticks: 120
+
+# Beetroot/nether wart, max age 3
+stages:
+  - block: BEETROOTS[age=0]
+    after-ticks: 1
+  - block: BEETROOTS[age=1]
+    after-ticks: 80
+  - block: BEETROOTS[age=3]
+    after-ticks: 120
+
+# Cocoa, max age 2. Cocoa also needs a facing direction.
+stages:
+  - block: COCOA[age=0,facing=north]
+    after-ticks: 1
+  - block: COCOA[age=1,facing=north]
+    after-ticks: 80
+  - block: COCOA[age=2,facing=north]
+    after-ticks: 120
+```
 
 ## Variants
 

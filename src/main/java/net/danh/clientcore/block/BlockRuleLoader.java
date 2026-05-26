@@ -76,6 +76,7 @@ final class BlockRuleLoader {
                         new HashSet<>(variant.getStringList("required-condition-ids")),
                         Math.max(1, variant.getInt("regen-ticks", section.getInt("regen-ticks", 100))),
                         loadMining(variant, section),
+                        loadFarming(variant, section),
                         variantDrops
                 ));
             }
@@ -90,6 +91,7 @@ final class BlockRuleLoader {
                         new HashSet<>(section.getStringList("required-condition-ids")),
                         Math.max(1, section.getInt("regen-ticks", 100)),
                         loadMining(section, null),
+                        loadFarming(section, null),
                         drops
                 ));
             }
@@ -119,9 +121,52 @@ final class BlockRuleLoader {
                 mining.getBoolean("active-block-visual", false) ? "ACTIVE_BLOCK" : "BLOCK_DISPLAY"));
         int defaultTime = Math.max(1, mining.getInt("default-time-ticks", mining.getInt("time-ticks", 0)));
         BlockMiningFeedback feedback = defaultFeedback(mining.getConfigurationSection("feedback"));
+        List<BlockToolRule> tools = loadToolRules(mining, defaultTime);
+        return new BlockMiningConfig(activeBlock, visualMode, defaultTime, feedback, tools);
+    }
+
+    private BlockFarmingConfig loadFarming(ConfigurationSection section, ConfigurationSection fallback) {
+        ConfigurationSection farming = section.getConfigurationSection("farming");
+        if (farming == null && fallback != null) {
+            farming = fallback.getConfigurationSection("farming");
+        }
+        if (farming == null || !farming.getBoolean("enabled", true)) {
+            return new BlockFarmingConfig(false, List.of(), List.of());
+        }
+        return new BlockFarmingConfig(true, loadToolRules(farming, 1), loadFarmingStages(farming));
+    }
+
+    private List<BlockFarmingStage> loadFarmingStages(ConfigurationSection farming) {
+        List<BlockFarmingStage> stages = new ArrayList<>();
+        for (var value : farming.getMapList("stages")) {
+            ConfigurationSection stage = farming.createSection("__stage_" + stages.size(), value);
+            List<ConfigurationSection> drops = new ArrayList<>();
+            for (var dropValue : stage.getMapList("drops")) {
+                ConfigurationSection drop = stage.createSection("__drop_" + drops.size(), dropValue);
+                drops.add(drop);
+            }
+            String block = stage.getString("block", stage.getString("ready-block", ""));
+            if (block == null || block.isBlank()) {
+                String material = stage.getString("material", "");
+                if (!material.isBlank() && stage.contains("age")) {
+                    block = material + "[age=" + Math.max(0, stage.getInt("age")) + "]";
+                } else {
+                    block = material;
+                }
+            }
+            stages.add(new BlockFarmingStage(
+                    block == null ? "" : block,
+                    Math.max(1, stage.getInt("after-ticks", stage.getInt("ticks", 1))),
+                    drops
+            ));
+        }
+        return stages;
+    }
+
+    private List<BlockToolRule> loadToolRules(ConfigurationSection parent, int defaultTime) {
         List<BlockToolRule> tools = new ArrayList<>();
-        for (var value : mining.getMapList("tools")) {
-            ConfigurationSection tool = mining.createSection("__tool_" + tools.size(), value);
+        for (var value : parent.getMapList("tools")) {
+            ConfigurationSection tool = parent.createSection("__tool_" + tools.size(), value);
             ConfigurationSection item = tool.getConfigurationSection("item");
             ConfigurationSection source = item != null ? item : tool;
             String type = source.getString("type", "vanilla").toLowerCase(Locale.ROOT);
@@ -144,7 +189,7 @@ final class BlockRuleLoader {
                     toolDrops
             ));
         }
-        return new BlockMiningConfig(activeBlock, visualMode, defaultTime, feedback, tools);
+        return tools;
     }
 
     private String normalizeVisualMode(String input) {

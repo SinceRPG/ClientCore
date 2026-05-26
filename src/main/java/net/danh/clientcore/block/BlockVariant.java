@@ -15,6 +15,7 @@ record BlockVariant(
         Set<String> requiredConditionIds,
         int regenTicks,
         BlockMiningConfig mining,
+        BlockFarmingConfig farming,
         List<ConfigurationSection> drops
 ) {
 }
