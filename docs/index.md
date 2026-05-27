@@ -6,12 +6,14 @@ nav_order: 1
 
 # ClientCore Wiki
 
-ClientCore is a Paper/Folia plugin for player-specific client-side gameplay: fake blocks, personal loot chests, personal
-ground drops, client-owned mobs, and client-only NPCs.
+ClientCore is a Paper/Folia plugin for player-specific client-side gameplay: fake blocks, PacketEvents-backed vanilla
+block mining, personal loot chests, personal ground drops, client-owned mobs, and client-only NPCs.
 
 The important idea is that most features are real server logic with client-specific visibility. For example, a block
-regen node is sent as a fake block packet to one player, while another player may see normal world terrain. Client mobs
-are still server entities, but ClientCore hides and protects them so only their owner can see and interact with them.
+regen node is sent as a fake block packet to one player, while another player may see normal world terrain. Vanilla
+mining rules keep the server authoritative by replacing the normal break flow with a timed server-side break. Client
+mobs are still server entities, but ClientCore hides and protects them so only their owner can see and interact with
+them.
 
 ## Requirements
 

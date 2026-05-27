@@ -6,6 +6,79 @@
 # for different use cases and player conditions.
 # ==============================================================================
 
+vanilla-mining:
+  enabled: false
+  # Optional WorldGuard flag checked before ClientCore takes over mining.
+  # Leave blank to allow configured vanilla mining anywhere.
+  default-worldguard-flag: ""
+  blocks:
+    # Custom mining controller for real vanilla blocks.
+    # Bukkit cancels the normal break, PacketEvents sends the crack animation,
+    # then ClientCore breaks the real block when the configured timer completes.
+    # Tool drops override block-level drops. If the matching tool has no drops
+    # and the block has no drops, ClientCore falls back to normal vanilla drops.
+    STONE:
+      enabled: true
+      condition: ""
+      conditions: [ ]
+      mining:
+        feedback:
+          display: true
+          actionbar: false
+          particles: true
+          sounds: true
+          interval-ticks: 4
+          message: "<gray>Mining <white>{progress}%</white>"
+          display-format: "<bold>{bar}</bold> <white>{progress}%</white>"
+          bar-length: 12
+          low-color: "<gold>"
+          mid-color: "<yellow>"
+          high-color: "<green>"
+          empty-color: "<dark_gray>"
+          background-argb: "8C0C1016"
+        default-time-ticks: 60
+        tools:
+          - item:
+              type: vanilla
+              material: WOODEN_PICKAXE
+            time-ticks: 80
+            drops:
+              - type: vanilla
+                material: COBBLESTONE
+                amount: 1
+                name: "<gray>Rough Cobblestone"
+          - item:
+              type: mmoitems
+              mmo-type: TOOL
+              mmo-id: STARTER_PICKAXE
+            time-ticks: 40
+            drops:
+              - type: mmoitems
+                mmo-type: MATERIAL
+                mmo-id: STARTER_STONE
+                material: COBBLESTONE
+    DIAMOND_ORE:
+      enabled: false
+      mining:
+        default-time-ticks: 120
+        tools:
+          - item:
+              type: vanilla
+              material: IRON_PICKAXE
+            time-ticks: 140
+            drops:
+              - type: vanilla
+                material: DIAMOND
+                amount: 1
+          - item:
+              type: vanilla
+              material: DIAMOND_PICKAXE
+            time-ticks: 90
+            drops:
+              - type: vanilla
+                material: DIAMOND
+                amount: 2
+
 block-regen:
   enabled: true
   # Determines the rendering radius around the player for fake blocks.

@@ -72,6 +72,15 @@ Common checks:
 - Check the world name.
 - Remove WorldGuard flag restrictions while testing.
 
+## Vanilla Mining Does Not Use Custom Drops
+
+- Check `vanilla-mining.enabled`.
+- Confirm the block key matches a real Bukkit material such as `STONE` or `DIAMOND_ORE`.
+- Put tool-specific rewards under `vanilla-mining.blocks.<BLOCK>.mining.tools[].drops`.
+- Confirm the held item matches the configured tool. If no tool `drops` match, ClientCore falls back to block-level
+  `drops`, then to natural vanilla drops.
+- Remove WorldGuard flag restrictions while testing, or leave `default-worldguard-flag: ""`.
+
 ## MythicMob Spawns But Model Is Visible To Everyone
 
 - Confirm `hooks.modelengine: true`.

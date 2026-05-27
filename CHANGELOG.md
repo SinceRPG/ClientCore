@@ -10,6 +10,9 @@
 - Added per-tool mining requirements for vanilla tools and MMOItems tools.
 - Added per-tool mining durations through `time-ticks`.
 - Added per-tool rewards, including MMOItems reward support.
+- Added PacketEvents-backed custom mining for real vanilla blocks through `vanilla-mining`.
+- Added tool-specific drop tables for vanilla mining rules; matching tool drops override block-level drops.
+- Added natural-break fallback for vanilla mining when neither the matching tool nor the block defines custom drops.
 - Added `active-block` for custom mining. `BARRIER` is recommended so the client does not break the visible block early.
 - Added player-only `BlockDisplay` overlays while custom mining is active, so players can still see the configured ready block.
 - Added `mining.visual-mode: active-block` for resource-pack/custom-block visuals that need vanilla crack overlays.
@@ -39,7 +42,8 @@
 
 ### Changed
 
-- Custom mining now uses server-side progress as the authority instead of trusting the client's vanilla block hardness.
+- Custom mining now uses server-side progress as the authority instead of trusting the client's vanilla mining speed.
+- Block config loading now supports both `block-regen` and `vanilla-mining` roots in the blocks folder.
 - Block mining rewards are inserted directly into the player inventory. Leftovers drop at the player's location only if the inventory is full.
 - Luck item command rewards now modify player inventories on the player entity thread.
 - Virtual chest GUI opening now runs on the player entity thread.

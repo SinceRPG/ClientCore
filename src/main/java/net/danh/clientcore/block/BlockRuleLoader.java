@@ -1,13 +1,11 @@
 package net.danh.clientcore.block;
 
-import org.bukkit.Registry;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.Plugin;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 final class BlockRuleLoader {
     private final Plugin plugin;
@@ -20,9 +18,6 @@ final class BlockRuleLoader {
 
     List<BlockRule> load() {
         List<BlockRule> rules = new ArrayList<>();
-        Set<String> blockNames = Registry.BLOCK.keyStream()
-                .map(key -> key.getKey().toUpperCase(Locale.ROOT))
-                .collect(Collectors.toSet());
         ConfigurationSection root = config.getConfigurationSection("block-regen.rules");
         if (root == null) {
             return rules;
@@ -102,6 +97,41 @@ final class BlockRuleLoader {
                     section.getStringList("conditions"),
                     section.getString("worldguard-flag", defaultFlag),
                     variants
+            ));
+        }
+        return rules;
+    }
+
+    Map<Material, VanillaBlockMiningRule> loadVanillaMiningRules() {
+        Map<Material, VanillaBlockMiningRule> rules = new EnumMap<>(Material.class);
+        ConfigurationSection root = config.getConfigurationSection("vanilla-mining.blocks");
+        if (root == null || !config.getBoolean("vanilla-mining.enabled", false)) {
+            return rules;
+        }
+        String defaultFlag = config.getString("vanilla-mining.default-worldguard-flag", "");
+        for (String key : root.getKeys(false)) {
+            ConfigurationSection section = root.getConfigurationSection(key);
+            if (section == null || !section.getBoolean("enabled", true)) {
+                continue;
+            }
+            Material material = Material.matchMaterial(section.getString("material", key));
+            if (material == null || !material.isBlock()) {
+                continue;
+            }
+
+            List<ConfigurationSection> drops = new ArrayList<>();
+            for (var value : section.getMapList("drops")) {
+                ConfigurationSection drop = section.createSection("__drop_" + drops.size(), value);
+                drops.add(drop);
+            }
+
+            rules.put(material, new VanillaBlockMiningRule(
+                    material,
+                    section.getString("condition", ""),
+                    section.getStringList("conditions"),
+                    section.getString("worldguard-flag", defaultFlag),
+                    loadMining(section, null),
+                    drops
             ));
         }
         return rules;

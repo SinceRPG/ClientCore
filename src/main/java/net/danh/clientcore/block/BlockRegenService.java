@@ -17,12 +17,15 @@ import net.danh.clientcore.util.CompatTask;
 import net.danh.clientcore.util.FoliaScheduler;
 import net.danh.clientcore.util.Text;
 import org.bukkit.*;
+import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -46,9 +49,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     private final Map<UUID, Set<String>> regenerating = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, Location>> visibleBlocks = new ConcurrentHashMap<>();
     private final Map<UUID, MiningSession> miningSessions = new ConcurrentHashMap<>();
+    private final Map<UUID, VanillaMiningSession> vanillaMiningSessions = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, FarmingState>> farmingStates = new ConcurrentHashMap<>();
     private List<BlockRule> rules = List.of();
+    private Map<Material, VanillaBlockMiningRule> vanillaMiningRules = Map.of();
     private boolean enabled;
+    private boolean vanillaMiningEnabled;
     private int refreshRadius;
     private CompatTask refreshTask;
     private long joinDelayTicks;
@@ -71,8 +77,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         this.enabled = configManager.getBlocks().getBoolean("block-regen.enabled", true);
         this.refreshRadius = Math.max(1, configManager.getBlocks().getInt("block-regen.refresh-radius", 10));
         this.joinDelayTicks = Math.max(1L, configManager.getBlocks().getLong("block-regen.join-delay-ticks", 5L));
-        this.rules = new BlockRuleLoader(plugin, configManager.getBlocks()).load();
+        BlockRuleLoader loader = new BlockRuleLoader(plugin, configManager.getBlocks());
+        this.rules = loader.load();
+        this.vanillaMiningEnabled = configManager.getBlocks().getBoolean("vanilla-mining.enabled", false);
+        this.vanillaMiningRules = loader.loadVanillaMiningRules();
         cancelAllMining();
+        cancelAllVanillaMining();
         cancelAllFarmingGrowth();
         if (refreshTask != null) {
             refreshTask.cancel();
@@ -98,6 +108,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         regenerating.clear();
         visibleBlocks.clear();
         cancelAllMining();
+        cancelAllVanillaMining();
         cancelAllFarmingGrowth();
         miningVisuals.clearAll();
         if (refreshTask != null) {
@@ -152,13 +163,19 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     private void handleDigPacket(Player player, DiggingAction action, int x, int y, int z) {
         if (!player.isOnline()) return;
         Optional<BlockMatch> optionalMatch = ruleForLocation(player, x, y, z);
-        if (optionalMatch.isEmpty()) return;
+        if (optionalMatch.isEmpty()) {
+            if (action == DiggingAction.CANCELLED_DIGGING) {
+                cancelVanillaMining(player, x, y, z, true);
+            }
+            return;
+        }
         BlockMatch match = optionalMatch.get();
         if (match.variant().mining().enabled()) {
             if (action == DiggingAction.START_DIGGING) {
                 startCustomMining(player, match);
             } else if (action == DiggingAction.CANCELLED_DIGGING) {
                 cancelMining(player, true);
+                cancelVanillaMining(player, x, y, z, true);
                 sendCurrentVisualBlock(player, match);
             } else if (action == DiggingAction.FINISHED_DIGGING) {
                 acknowledgeCurrentVisualDig(player, match, action, false);
@@ -174,6 +191,178 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
         Location loc = match.rule().location();
         scheduler.region(loc, () -> handleBlockBreak(player, match, match.variant().drops()));
+    }
+
+    private Optional<VanillaBlockMiningRule> vanillaRuleFor(Player player, Block block) {
+        if (!enabled || !vanillaMiningEnabled || block == null || block.getType().isAir()) {
+            return Optional.empty();
+        }
+        VanillaBlockMiningRule rule = vanillaMiningRules.get(block.getType());
+        if (rule == null) {
+            return Optional.empty();
+        }
+        if (rule.mining().tools().isEmpty() && rule.mining().defaultTimeTicks() <= 0) {
+            return Optional.empty();
+        }
+        if (rule.worldGuardFlag() != null
+                && !rule.worldGuardFlag().isBlank()
+                && !hooks.worldGuardFlagAllows(player, block.getLocation(), rule.worldGuardFlag())) {
+            return Optional.empty();
+        }
+        if (!conditions.evaluate(player, rule.condition(), rule.conditions()).passed()) {
+            return Optional.empty();
+        }
+        return Optional.of(rule);
+    }
+
+    private void startVanillaMining(Player player, Block block, VanillaBlockMiningRule rule) {
+        Optional<BlockToolRule> tool = matchingTool(player, rule.mining());
+        if (tool.isEmpty() && !rule.mining().tools().isEmpty()) {
+            return;
+        }
+
+        VanillaMiningSession current = vanillaMiningSessions.get(player.getUniqueId());
+        Location location = block.getLocation();
+        if (current != null && sameBlock(current.location(), location)) {
+            return;
+        }
+        cancelVanillaMining(player, true);
+
+        int timeTicks = tool.map(BlockToolRule::timeTicks).orElse(rule.mining().defaultTimeTicks());
+        if (timeTicks <= 0) {
+            timeTicks = 1;
+        }
+        List<ConfigurationSection> drops = tool.filter(toolRule -> !toolRule.drops().isEmpty())
+                .map(BlockToolRule::drops)
+                .orElse(rule.drops());
+        int entityId = Objects.hash(player.getUniqueId(), "vanilla", location.getWorld().getUID(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        VanillaMiningSession session = new VanillaMiningSession(location, rule, tool.orElse(null), entityId, drops, timeTicks, 0, -1, null);
+        vanillaMiningSessions.put(player.getUniqueId(), session);
+        CompatTask task = scheduler.regionTimer(location, 1L, 1L, ignored -> tickVanillaMining(player));
+        VanillaMiningSession stored = vanillaMiningSessions.get(player.getUniqueId());
+        if (stored != null && sameBlock(stored.location(), location)) {
+            vanillaMiningSessions.put(player.getUniqueId(), stored.withTask(task));
+        } else {
+            task.cancel();
+        }
+    }
+
+    private void tickVanillaMining(Player player) {
+        VanillaMiningSession session = vanillaMiningSessions.get(player.getUniqueId());
+        if (session == null) {
+            return;
+        }
+        Location location = session.location();
+        Block block = location.getBlock();
+        if (!player.isOnline()
+                || player.getWorld() != location.getWorld()
+                || player.getLocation().distanceSquared(location) > 36.0D
+                || block.getType() != session.rule().material()
+                || (session.tool() != null && !toolMatches(player.getInventory().getItemInMainHand(), session.tool()))) {
+            cancelVanillaMining(player, true);
+            return;
+        }
+
+        int elapsed = session.elapsedTicks() + 1;
+        int progress = Math.min(100, (int) Math.floor(elapsed * 100.0D / session.timeTicks()));
+        miningVisuals.updateProgress(player, progress, session.rule().mining().feedback());
+        int stage = Math.min(9, (int) Math.floor((elapsed * 10.0D) / session.timeTicks()));
+        if (stage != session.stage()) {
+            packets.sendBlockBreakAnimation(player, location, session.animationEntityId(), stage);
+        }
+        sendVanillaMiningFeedback(player, session, elapsed, stage);
+
+        if (elapsed >= session.timeTicks()) {
+            vanillaMiningSessions.remove(player.getUniqueId());
+            if (session.task() != null) {
+                session.task().cancel();
+            }
+            packets.sendBlockBreakAnimation(player, location, session.animationEntityId(), -1);
+            miningVisuals.clear(player);
+            breakVanillaBlock(player, block, session);
+            return;
+        }
+
+        vanillaMiningSessions.put(player.getUniqueId(), session.withProgress(elapsed, stage));
+    }
+
+    private void sendVanillaMiningFeedback(Player player, VanillaMiningSession session, int elapsed, int stage) {
+        BlockMiningFeedback feedback = session.rule().mining().feedback();
+        int progress = Math.min(100, (int) Math.floor(elapsed * 100.0D / session.timeTicks()));
+        boolean intervalTick = elapsed == 1 || elapsed % feedback.intervalTicks() == 0;
+
+        if (feedback.actionBar() && intervalTick) {
+            player.sendActionBar(Text.mm(feedback.message().replace("{progress}", String.valueOf(progress))));
+        }
+
+        Location center = session.location().toBlockLocation().add(0.5D, 0.5D, 0.5D);
+        if (feedback.particles() && intervalTick) {
+            player.spawnParticle(Particle.CRIT, center, 4, 0.28D, 0.28D, 0.28D, 0.01D);
+            if (progress >= 75) {
+                player.spawnParticle(Particle.DUST, center, 2, 0.22D, 0.22D, 0.22D, 0.0D, new Particle.DustOptions(Color.GRAY, 0.8F));
+            }
+        }
+
+        if (feedback.sounds() && (elapsed == 1 || stage != session.stage())) {
+            player.playSound(center, blockHitSound(session.rule().material()), 0.35F, 0.75F + (stage * 0.035F));
+        }
+    }
+
+    private Sound blockHitSound(Material material) {
+        try {
+            return material.createBlockData().getSoundGroup().getHitSound();
+        } catch (IllegalArgumentException ignored) {
+            return Sound.BLOCK_STONE_HIT;
+        }
+    }
+
+    private void breakVanillaBlock(Player player, Block block, VanillaMiningSession session) {
+        if (block.getType() != session.rule().material()) {
+            return;
+        }
+        player.playSound(block.getLocation(), block.getBlockData().getSoundGroup().getBreakSound(), 1.0F, 1.0F);
+        if (session.drops().isEmpty()) {
+            block.breakNaturally(player.getInventory().getItemInMainHand());
+            return;
+        }
+        block.setType(Material.AIR);
+        scheduler.entity(player, () -> giveDrops(player, session.drops()));
+    }
+
+    private void cancelVanillaMining(Player player, int x, int y, int z, boolean clearAnimation) {
+        VanillaMiningSession session = vanillaMiningSessions.get(player.getUniqueId());
+        if (session == null || session.location().getBlockX() != x || session.location().getBlockY() != y || session.location().getBlockZ() != z) {
+            return;
+        }
+        cancelVanillaMining(player, clearAnimation);
+    }
+
+    private void cancelVanillaMining(Player player, boolean clearAnimation) {
+        VanillaMiningSession session = vanillaMiningSessions.remove(player.getUniqueId());
+        if (session == null) {
+            return;
+        }
+        if (session.task() != null) {
+            session.task().cancel();
+        }
+        miningVisuals.clear(player);
+        if (clearAnimation) {
+            packets.sendBlockBreakAnimation(player, session.location(), session.animationEntityId(), -1);
+        }
+    }
+
+    private void cancelAllVanillaMining() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            cancelVanillaMining(player, true);
+        }
+        vanillaMiningSessions.clear();
+    }
+
+    private boolean sameBlock(Location first, Location second) {
+        return first.getWorld() == second.getWorld()
+                && first.getBlockX() == second.getBlockX()
+                && first.getBlockY() == second.getBlockY()
+                && first.getBlockZ() == second.getBlockZ();
     }
 
     private void handleBlockBreak(Player player, BlockMatch match, List<ConfigurationSection> drops) {
@@ -564,6 +753,29 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         sendCurrentVisualBlock(player, match.get());
     }
 
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockDamage(BlockDamageEvent event) {
+        Player player = event.getPlayer();
+        Block block = event.getBlock();
+        Optional<VanillaBlockMiningRule> rule = vanillaRuleFor(player, block);
+        if (rule.isEmpty()) {
+            return;
+        }
+        event.setCancelled(true);
+        startVanillaMining(player, block, rule.get());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBlockBreak(BlockBreakEvent event) {
+        Player player = event.getPlayer();
+        Block block = event.getBlock();
+        Optional<VanillaBlockMiningRule> rule = vanillaRuleFor(player, block);
+        if (rule.isEmpty()) {
+            return;
+        }
+        event.setCancelled(true);
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
@@ -573,6 +785,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         cancelMining(event.getPlayer(), false);
+        cancelVanillaMining(event.getPlayer(), false);
         regenerating.remove(event.getPlayer().getUniqueId());
         Map<String, FarmingState> states = farmingStates.remove(event.getPlayer().getUniqueId());
         if (states != null) {
@@ -879,6 +1092,26 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
         MiningSession withProgress(int elapsedTicks, int stage) {
             return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task, timeoutTask);
+        }
+    }
+
+    private record VanillaMiningSession(
+            Location location,
+            VanillaBlockMiningRule rule,
+            BlockToolRule tool,
+            int animationEntityId,
+            List<ConfigurationSection> drops,
+            int timeTicks,
+            int elapsedTicks,
+            int stage,
+            CompatTask task
+    ) {
+        VanillaMiningSession withTask(CompatTask task) {
+            return new VanillaMiningSession(location, rule, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task);
+        }
+
+        VanillaMiningSession withProgress(int elapsedTicks, int stage) {
+            return new VanillaMiningSession(location, rule, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task);
         }
     }
 

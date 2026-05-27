@@ -9,6 +9,8 @@ loot, and persistence.
 - Client-side block regeneration with ready and cooldown block states.
 - Server-side custom mining for client-side blocks, including tool requirements, MMOItems tools, per-tool drops, and
   TextDisplay progress bars.
+- Optional custom mining for real vanilla blocks through PacketEvents crack animations, with per-tool timings and
+  per-tool custom drops.
 - Live client-side build capture with `/packetmode`, `/packetsave`, and `/packetapply`.
 - Player-specific loot chests that open virtual inventories.
 - Player-specific ground drops with cooldowns and protected pickup logic.
@@ -34,7 +36,7 @@ already has a compatible PacketEvents plugin, ClientCore will use the existing A
 Every feature ships with example rules under `src/main/resources`:
 
 - `config.yml` controls storage, luck, debug logging, and optional hooks.
-- `blocks/blocks.yml` contains block regeneration examples, variants, drops, and conditions.
+- `blocks/blocks.yml` contains block regeneration examples, vanilla mining examples, variants, drops, and conditions.
 - `chests/chests.yml` contains virtual chest examples, cooldown tiers, and GUI loot.
 - `drops/drops.yml` contains protected client-side ground drop examples.
 - `mobs/mobs.yml` contains client-owned mob and MythicMobs fallback examples.

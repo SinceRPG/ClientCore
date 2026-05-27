@@ -77,13 +77,16 @@ zombie_b:
 These are the full root names if you use full root style:
 
 ```text
-blocks: block-regen
+blocks: block-regen, vanilla-mining
 mobs: client-mobs
 npcs: client-npcs
 drops: client-drops
 chests: client-loot-chests
 builds: client-builds
 ```
+
+The blocks folder is the only feature folder with two explicit roots. `block-regen` controls fake client-side resource
+nodes, while `vanilla-mining` controls real vanilla block mining overrides.
 
 ## Legacy Migration
 

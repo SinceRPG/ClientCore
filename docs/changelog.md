@@ -14,6 +14,7 @@ The canonical changelog is maintained at the repository root:
 
 - Client-side farming nodes with right-click harvest support.
 - Custom client-side block mining with server-side timing.
+- PacketEvents-backed vanilla block mining with per-tool timing and per-tool drops.
 - Vanilla and MMOItems tool requirements.
 - Tool-specific drops and MMOItems rewards.
 - Smooth `BARRIER + BlockDisplay` mining mode to avoid early client-side block breaking.

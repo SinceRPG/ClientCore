@@ -49,7 +49,7 @@ public final class ConfigManager {
 
     public void loadAll() {
         mainConfig = load(CONFIG_FILE, true);
-        blocksConfig = loadFeatureFolder(BLOCKS_FOLDER, BLOCKS_FILE, "blocks.yml", "block-regen");
+        blocksConfig = loadFeatureFolder(BLOCKS_FOLDER, BLOCKS_FILE, "blocks.yml", "block-regen", "vanilla-mining");
         mobsConfig = loadFeatureFolder(MOBS_FOLDER, MOBS_FILE, "mobs.yml", "client-mobs");
         npcsConfig = loadFeatureFolder(NPCS_FOLDER, NPCS_FILE, "npcs.yml", "client-npcs");
         dropsConfig = loadFeatureFolder(DROPS_FOLDER, DROPS_FILE, "drops.yml", "client-drops");
@@ -79,26 +79,37 @@ public final class ConfigManager {
         return config;
     }
 
-    private YamlConfiguration loadFeatureFolder(String folderName, String defaultFileName, String legacyFileName, String rootPath) {
+    private YamlConfiguration loadFeatureFolder(String folderName, String defaultFileName, String legacyFileName, String rootPath, String... additionalRootPaths) {
         migrateLegacyFile(defaultFileName, legacyFileName);
         ensureResourceFile(defaultFileName);
 
         YamlConfiguration aggregate = new YamlConfiguration();
         File legacy = new File(plugin.getDataFolder(), legacyFileName);
         if (legacy.exists()) {
-            mergeFeatureConfig(aggregate, YamlConfiguration.loadConfiguration(legacy), rootPath);
+            mergeFeatureConfig(aggregate, YamlConfiguration.loadConfiguration(legacy), rootPath, additionalRootPaths);
         }
         for (File file : yamlFiles(folderName)) {
             YamlConfiguration source = YamlConfiguration.loadConfiguration(file);
-            mergeFeatureConfig(aggregate, source, rootPath);
+            mergeFeatureConfig(aggregate, source, rootPath, additionalRootPaths);
         }
         return aggregate;
     }
 
-    private void mergeFeatureConfig(YamlConfiguration target, YamlConfiguration source, String rootPath) {
+    private void mergeFeatureConfig(YamlConfiguration target, YamlConfiguration source, String rootPath, String... additionalRootPaths) {
+        boolean mergedExplicitRoot = false;
         ConfigurationSection root = source.getConfigurationSection(rootPath);
         if (root != null) {
             mergeSection(target, rootPath, root);
+            mergedExplicitRoot = true;
+        }
+        for (String additionalRootPath : additionalRootPaths) {
+            ConfigurationSection additionalRoot = source.getConfigurationSection(additionalRootPath);
+            if (additionalRoot != null) {
+                mergeSection(target, additionalRootPath, additionalRoot);
+                mergedExplicitRoot = true;
+            }
+        }
+        if (mergedExplicitRoot) {
             return;
         }
 

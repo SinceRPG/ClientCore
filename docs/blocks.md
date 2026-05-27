@@ -4,11 +4,15 @@ title: Blocks Regeneration
 nav_order: 6
 ---
 
-# Blocks Regeneration
+# Blocks
 
 Block regen creates fake, player-specific resource nodes. The real world block does not need to change. ClientCore sends
 block packets to eligible players, handles the break packet, gives rewards, then sends a cooldown block and later the
 ready block again.
+
+Vanilla mining rules are different: they apply to real vanilla blocks already placed in the world. ClientCore cancels the
+normal break, runs a server-side mining timer, sends PacketEvents crack animation packets, and breaks the real block when
+the timer completes.
 
 Folder:
 
@@ -83,6 +87,85 @@ block-regen:
 ```
 
 If you use direct rule style only, these settings fall back to defaults.
+
+## Vanilla Mining
+
+Use `vanilla-mining` when you want custom mining speed and rewards for real vanilla blocks such as `STONE`,
+`DIAMOND_ORE`, or `DEEPSLATE`. It does not change the client's built-in mining speed table; it replaces the break flow
+with server-authoritative timing.
+
+```yaml
+vanilla-mining:
+  enabled: true
+  # Leave blank to allow configured vanilla mining anywhere.
+  # Set a WorldGuard flag name if the rule should only work in allowed regions.
+  default-worldguard-flag: ""
+  blocks:
+    STONE:
+      enabled: true
+      condition: ""
+      conditions: []
+      mining:
+        default-time-ticks: 60
+        tools:
+          - item:
+              type: vanilla
+              material: WOODEN_PICKAXE
+            time-ticks: 80
+            drops:
+              - type: vanilla
+                material: COBBLESTONE
+                amount: 1
+          - item:
+              type: mmoitems
+              mmo-type: TOOL
+              mmo-id: STARTER_PICKAXE
+            time-ticks: 40
+            drops:
+              - type: mmoitems
+                mmo-type: MATERIAL
+                mmo-id: STARTER_STONE
+                material: COBBLESTONE
+```
+
+Vanilla mining supports the same `mining.feedback`, `tools`, vanilla item matching, MMOItems tool matching, conditions,
+and MMOItems rewards as client-side block regen mining.
+
+Tool-specific drops are preferred:
+
+- If the matching tool has `drops`, those drops are given.
+- If the matching tool has no `drops`, ClientCore uses the block-level `drops`.
+- If neither the tool nor the block has `drops`, ClientCore breaks the block naturally with the player's held item.
+
+This lets each tool have a different reward table without defining a shared block drop:
+
+```yaml
+vanilla-mining:
+  enabled: true
+  blocks:
+    DIAMOND_ORE:
+      mining:
+        default-time-ticks: 120
+        tools:
+          - item:
+              type: vanilla
+              material: IRON_PICKAXE
+            time-ticks: 140
+            drops:
+              - type: vanilla
+                material: DIAMOND
+                amount: 1
+          - item:
+              type: vanilla
+              material: DIAMOND_PICKAXE
+            time-ticks: 90
+            drops:
+              - type: vanilla
+                material: DIAMOND
+                amount: 2
+```
+
+Vanilla mining is intentionally disabled by default because it affects every matching real block in the world.
 
 ## Rule Fields
 
