@@ -145,13 +145,13 @@ jobs:
               --title "Latest ClientCore Dev Build" \
               --notes-file "$DEV_BODY" \
               --prerelease \
-              --latest=false
+              --latest=true
           else
             gh release create "$DEV_TAG" \
               --title "Latest ClientCore Dev Build" \
               --notes-file "$DEV_BODY" \
               --prerelease \
-              --latest=false
+              --latest=true
           fi
 
           gh release upload "$DEV_TAG" "$DEV_JAR" --clobber
@@ -175,12 +175,12 @@ jobs:
             gh release edit "$VERSION_TAG" \
               --title "ClientCore ${{ steps.meta.outputs.version }}" \
               --notes-file "$VERSION_BODY" \
-              --latest
+              --latest=false
           else
             gh release create "$VERSION_TAG" \
               --title "ClientCore ${{ steps.meta.outputs.version }}" \
               --notes-file "$VERSION_BODY" \
-              --latest
+              --latest=false
           fi
 
           gh release upload "$VERSION_TAG" "$RELEASE_JAR" --clobber
