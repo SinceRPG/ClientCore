@@ -38,7 +38,7 @@ Optional integrations:
 3. Start the server once.
 4. Edit files under `plugins/ClientCore/`.
 5. Run `/clientcore reload`.
-6. Use `/clientcore status` to confirm loaded block and mob rule counts.
+6. Use `/clientcore status` to confirm loaded block regen, vanilla mining, farming, and mob rule counts.
 
 ## Main Topics
 

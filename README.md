@@ -50,7 +50,7 @@ root, or direct rule IDs.
 ## Commands
 
 - `/clientcore reload` reloads all configuration files.
-- `/clientcore status` shows loaded rule counts.
+- `/clientcore status` shows loaded block regen, vanilla mining, farming, and mob rule counts.
 - `/clientcore refresh` resends client-side block state around the sender.
 - `/clientcore build mode <on|off>` captures real block edits into a client-side build session.
 - `/clientcore build save <name>` saves the captured build and restores the real world.

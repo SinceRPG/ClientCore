@@ -53,6 +53,8 @@ public final class ClientCoreCommands {
                         CommandSender sender = context.getSource().getSender();
                         Text.sendConfig(sender, config, "commands.status",
                                 "{blocks}", String.valueOf(blockService.ruleCount()),
+                                "{vanilla_mining}", String.valueOf(blockService.vanillaMiningRuleCount()),
+                                "{farming}", String.valueOf(blockService.farmingRuleCount()),
                                 "{mobs}", String.valueOf(mobService.ruleCount()),
                                 "{oraxen}", hookState(hooks.hasOraxen()),
                                 "{itemsadder}", hookState(hooks.hasItemsAdder()),

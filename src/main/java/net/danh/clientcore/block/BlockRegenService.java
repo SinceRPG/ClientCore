@@ -245,6 +245,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
     private void startVanillaMining(Player player, Block block, VanillaBlockMiningRule rule) {
         Optional<BlockToolRule> tool = matchingTool(player, rule.mining());
+        debugToolMatch(player, "vanilla-mining", rule.material().name(), rule.mining().tools(), tool);
         if (tool.isEmpty() && !rule.mining().tools().isEmpty()) {
             return;
         }
@@ -260,9 +261,11 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (timeTicks <= 0) {
             timeTicks = 1;
         }
+        String dropSource = dropSource(tool.orElse(null), rule.drops(), true);
         List<ConfigurationSection> drops = tool.filter(toolRule -> !toolRule.drops().isEmpty())
                 .map(BlockToolRule::drops)
                 .orElse(rule.drops());
+        debugDrops(player, "vanilla-mining", rule.material().name(), dropSource);
         int entityId = Objects.hash(player.getUniqueId(), "vanilla", location.getWorld().getUID(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
         VanillaMiningSession session = new VanillaMiningSession(location, rule, tool.orElse(null), entityId, drops, timeTicks, 0, -1, null);
         vanillaMiningSessions.put(player.getUniqueId(), session);
@@ -350,6 +353,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
         player.playSound(block.getLocation(), block.getBlockData().getSoundGroup().getBreakSound(), 1.0F, 1.0F);
         if (session.drops().isEmpty()) {
+            debug(player, "vanilla-mining " + session.rule().material().name() + " using natural break fallback drops");
             block.breakNaturally(player.getInventory().getItemInMainHand());
             return;
         }
@@ -443,15 +447,18 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
     private void handleFarming(Player player, BlockMatch match) {
         Optional<BlockToolRule> tool = matchingTool(player, match.variant().farming().tools());
+        debugToolMatch(player, "farming", match.rule().id() + "/" + match.variant().id(), match.variant().farming().tools(), tool);
         if (tool.isEmpty() && !match.variant().farming().tools().isEmpty()) {
             sendCurrentVisualBlock(player, match);
             return;
         }
 
         List<ConfigurationSection> stageDrops = farmingStageDrops(player, match);
+        String dropSource = dropSource(tool.orElse(null), stageDrops.isEmpty() ? match.variant().drops() : stageDrops, false);
         List<ConfigurationSection> drops = tool.filter(rule -> !rule.drops().isEmpty())
                 .map(BlockToolRule::drops)
                 .orElse(stageDrops.isEmpty() ? match.variant().drops() : stageDrops);
+        debugDrops(player, "farming", match.rule().id() + "/" + match.variant().id(), dropSource);
         cancelMining(player, true);
         if (match.variant().farming().stages().isEmpty()) {
             scheduler.region(match.rule().location(), () -> handleBlockBreak(player, match, drops));
@@ -550,6 +557,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
 
         Optional<BlockToolRule> tool = matchingTool(player, match.variant().mining());
+        debugToolMatch(player, "block-regen-mining", match.rule().id() + "/" + match.variant().id(), match.variant().mining().tools(), tool);
         if (tool.isEmpty() && !match.variant().mining().tools().isEmpty()) {
             sendCurrentVisualBlock(player, match);
             clearBreakAnimation(player, match.rule());
@@ -569,9 +577,11 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (timeTicks <= 0) {
             timeTicks = 1;
         }
+        String dropSource = dropSource(tool.orElse(null), match.variant().drops(), false);
         List<ConfigurationSection> drops = tool.filter(rule -> !rule.drops().isEmpty())
                 .map(BlockToolRule::drops)
                 .orElse(match.variant().drops());
+        debugDrops(player, "block-regen-mining", match.rule().id() + "/" + match.variant().id(), dropSource);
         int entityId = breakAnimationEntityId(player, match.rule());
         MiningSession session = new MiningSession(match.rule().id(), match.rule().location(), tool.orElse(null), entityId, drops, timeTicks, 0, -1, null, null);
         miningSessions.put(player.getUniqueId(), session);
@@ -722,6 +732,80 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         return 1;
     }
 
+    private String dropSource(BlockToolRule tool, List<ConfigurationSection> blockDrops, boolean naturalFallback) {
+        if (tool != null && !tool.drops().isEmpty()) {
+            return "tool";
+        }
+        if (!blockDrops.isEmpty()) {
+            return "block";
+        }
+        return naturalFallback ? "natural-break-fallback" : "block";
+    }
+
+    private void debugToolMatch(Player player, String feature, String target, List<BlockToolRule> tools, Optional<BlockToolRule> tool) {
+        if (!debugEnabled()) {
+            return;
+        }
+        if (tools.isEmpty()) {
+            debug(player, feature + " " + target + " has no tool rules; any held item is allowed");
+            return;
+        }
+        if (tool.isEmpty()) {
+            debug(player, feature + " " + target + " matched no tool rule for held item " + heldItemName(player));
+            return;
+        }
+        BlockToolRule matched = tool.get();
+        debug(player, feature + " " + target + " matched tool rule " + describeTool(matched)
+                + " via " + toolMatchSource(matched) + " for held item " + heldItemName(player));
+    }
+
+    private void debugDrops(Player player, String feature, String target, String source) {
+        debug(player, feature + " " + target + " drops source: " + source);
+    }
+
+    private boolean debugEnabled() {
+        return configManager.getMain().getBoolean("settings.debug", false);
+    }
+
+    private void debug(Player player, String message) {
+        if (!debugEnabled()) {
+            return;
+        }
+        plugin.getLogger().info("[debug] " + player.getName() + ": " + message);
+    }
+
+    private String describeTool(BlockToolRule rule) {
+        if ("mmoitems".equalsIgnoreCase(rule.type())) {
+            return "mmoitems:" + blank(rule.mmoType()) + "/" + blank(rule.mmoId());
+        }
+        if ("any".equalsIgnoreCase(rule.type())) {
+            return "any";
+        }
+        return "vanilla:" + (rule.material() == null ? "unknown" : rule.material().name());
+    }
+
+    private String toolMatchSource(BlockToolRule rule) {
+        if ("mmoitems".equalsIgnoreCase(rule.type())) {
+            return "MMOItems";
+        }
+        if ("any".equalsIgnoreCase(rule.type())) {
+            return "any";
+        }
+        return "vanilla";
+    }
+
+    private String heldItemName(Player player) {
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (item == null || item.isEmpty()) {
+            return "AIR";
+        }
+        return item.getType().name();
+    }
+
+    private String blank(String value) {
+        return value == null || value.isBlank() ? "unknown" : value;
+    }
+
     private void cancelMining(Player player, boolean clearAnimation) {
         MiningSession session = miningSessions.remove(player.getUniqueId());
         if (session == null) {
@@ -826,6 +910,16 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
     public int ruleCount() {
         return rules.size();
+    }
+
+    public int vanillaMiningRuleCount() {
+        return vanillaMiningRules.size();
+    }
+
+    public int farmingRuleCount() {
+        return (int) rules.stream()
+                .filter(rule -> rule.variants().stream().anyMatch(variant -> variant.farming().enabled()))
+                .count();
     }
 
     public List<String> ruleIds() {

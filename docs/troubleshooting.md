@@ -8,6 +8,9 @@ nav_order: 12
 
 ## `/clientcore status` Shows 0 Rules
 
+`/clientcore status` reports `Block Regen`, `Vanilla Mining`, `Farming`, and `Mobs` separately. Check the counter for
+the feature you are testing.
+
 Check folder paths:
 
 ```text
@@ -64,7 +67,7 @@ Common checks:
 
 ## Block Regen Does Not Appear
 
-- Run `/clientcore status` and confirm block count.
+- Run `/clientcore status` and confirm `Block Regen:` is above `0`.
 - Stand near the configured location.
 - Run `/clientcore refresh`.
 - Check `block-regen.enabled`.
@@ -79,6 +82,7 @@ Common checks:
 - Put tool-specific rewards under `vanilla-mining.blocks.<BLOCK>.mining.tools[].drops`.
 - Confirm the held item matches the configured tool. If no tool `drops` match, ClientCore falls back to block-level
   `drops`, then to natural vanilla drops.
+- Turn on `/clientcore debug on` to log the matched tool rule, vanilla/MMOItems match source, and drop source.
 - Remove WorldGuard flag restrictions while testing, or leave `default-worldguard-flag: ""`.
 
 ## MythicMob Spawns But Model Is Visible To Everyone

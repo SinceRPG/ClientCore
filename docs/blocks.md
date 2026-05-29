@@ -523,7 +523,8 @@ rich-coal:
 
 ## Debug Checklist
 
-- Run `/clientcore status` and check `Blocks:` is above `0`.
+- Run `/clientcore status` and check `Block Regen:` is above `0`. For real vanilla block overrides, check
+  `Vanilla Mining:` instead. For right-click harvest nodes, check `Farming:`.
 - Run `/clientcore refresh` near the configured location.
 - Temporarily set `condition: ""` and `conditions: []`.
 - Confirm the world name exactly matches `/mv info` or Bukkit world folder name.
