@@ -11,7 +11,7 @@ commands:
   only-players: "<red>Only players can execute this command."
   player-not-found: "<red>Player not found or is offline."
   reloaded: "<green>ClientCore configurations reloaded successfully."
-  status: "<aqua>ClientCore</aqua> <gray>Blocks: {blocks} | Mobs: {mobs}</gray>"
+  status: "<aqua>ClientCore</aqua> <gray>Blocks: {blocks} | Mobs: {mobs} | Oraxen: {oraxen} | ItemsAdder: {itemsadder} | Nexo: {nexo} | CraftEngine: {craftengine}</gray>"
   
   # Action messages
   blocks-refreshed: "<green>Refreshed client-side blocks around you."
@@ -71,3 +71,4 @@ console:
   invalid-entity: "Invalid entity-type for rule {rule}: {type}"
   world-not-found: "World not found for rule {rule}: {world}"
   hook-failed: "Failed to spawn {plugin} entity: {error}"
+  custom-block-active-unresolved: "Rule {rule} variant {variant} uses mining.active-block '{id}' with visual-mode {visual}, but {provider} did not resolve it to a non-air block state. Hook status: {hooks}."

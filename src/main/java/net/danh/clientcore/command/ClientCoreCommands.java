@@ -13,6 +13,7 @@ import net.danh.clientcore.ClientCore;
 import net.danh.clientcore.block.BlockRegenService;
 import net.danh.clientcore.build.ClientBuildService;
 import net.danh.clientcore.config.ConfigManager;
+import net.danh.clientcore.hook.HookRegistry;
 import net.danh.clientcore.luck.LuckItemService;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.mob.ClientMobService;
@@ -33,7 +34,7 @@ public final class ClientCoreCommands {
     private ClientCoreCommands() {
     }
 
-    public static void register(ClientCore plugin, ConfigManager config, BlockRegenService blockService, ClientMobService mobService, ClientBuildService buildService, VisibilityService visibility, LuckService luck, LuckItemService luckItems) {
+    public static void register(ClientCore plugin, ConfigManager config, HookRegistry hooks, BlockRegenService blockService, ClientMobService mobService, ClientBuildService buildService, VisibilityService visibility, LuckService luck, LuckItemService luckItems) {
         plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, (ReloadableRegistrarEvent<Commands> event) -> {
 
             LiteralArgumentBuilder<CommandSourceStack> rootBuilder = Commands.literal("clientcore");
@@ -50,7 +51,13 @@ public final class ClientCoreCommands {
                     .requires(source -> source.getSender().hasPermission("clientcore.admin"))
                     .executes(context -> {
                         CommandSender sender = context.getSource().getSender();
-                        Text.sendConfig(sender, config, "commands.status", "{blocks}", String.valueOf(blockService.ruleCount()), "{mobs}", String.valueOf(mobService.ruleCount()));
+                        Text.sendConfig(sender, config, "commands.status",
+                                "{blocks}", String.valueOf(blockService.ruleCount()),
+                                "{mobs}", String.valueOf(mobService.ruleCount()),
+                                "{oraxen}", hookState(hooks.hasOraxen()),
+                                "{itemsadder}", hookState(hooks.hasItemsAdder()),
+                                "{nexo}", hookState(hooks.hasNexo()),
+                                "{craftengine}", hookState(hooks.hasCraftEngine()));
                         return 1;
                     }));
 
@@ -484,6 +491,10 @@ public final class ClientCoreCommands {
 
     private static String blank(String value) {
         return value == null || value.isBlank() ? "auto" : value;
+    }
+
+    private static String hookState(boolean active) {
+        return active ? "active" : "inactive";
     }
 
     private static CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestPlayers(SuggestionsBuilder builder) {

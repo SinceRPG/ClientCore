@@ -23,7 +23,7 @@ Reload configuration:
 /clientcore reload
 ```
 
-Show loaded rule counts:
+Show loaded rule counts and custom block hook status:
 
 ```text
 /clientcore status

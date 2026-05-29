@@ -10,6 +10,7 @@ import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPl
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
+import net.danh.clientcore.hook.plugin.CustomBlockHook;
 import net.danh.clientcore.item.ConfigItemBuilder;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
@@ -81,6 +82,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         this.rules = loader.load();
         this.vanillaMiningEnabled = configManager.getBlocks().getBoolean("vanilla-mining.enabled", false);
         this.vanillaMiningRules = loader.loadVanillaMiningRules();
+        warnUnresolvedActiveBlocks();
         cancelAllMining();
         cancelAllVanillaMining();
         cancelAllFarmingGrowth();
@@ -114,6 +116,32 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (refreshTask != null) {
             refreshTask.cancel();
             refreshTask = null;
+        }
+    }
+
+    private void warnUnresolvedActiveBlocks() {
+        for (BlockRule rule : rules) {
+            for (BlockVariant variant : rule.variants()) {
+                BlockMiningConfig mining = variant.mining();
+                if (!mining.enabled()) {
+                    continue;
+                }
+                String activeBlock = mining.activeBlock();
+                if (!CustomBlockHook.hasKnownProviderPrefix(activeBlock)) {
+                    continue;
+                }
+                Optional<BlockData> resolved = hooks.customBlockData(activeBlock);
+                if (resolved.isPresent() && !resolved.get().getMaterial().isAir()) {
+                    continue;
+                }
+                Text.warn(plugin, configManager, "console.custom-block-active-unresolved",
+                        "{rule}", rule.id(),
+                        "{variant}", variant.id(),
+                        "{id}", activeBlock == null ? "" : activeBlock,
+                        "{visual}", mining.visualMode(),
+                        "{provider}", CustomBlockHook.providerName(activeBlock),
+                        "{hooks}", hooks.customBlockHookStatus());
+            }
         }
     }
 

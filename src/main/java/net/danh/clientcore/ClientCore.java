@@ -118,7 +118,7 @@ public final class ClientCore extends JavaPlugin {
         getServer().getPluginManager().registerEvents(luckItemService, this);
         getServer().getPluginManager().registerEvents(visibilityService, this);
 
-        ClientCoreCommands.register(this, configManager, blockRegenService, clientMobService, clientBuildService, visibilityService, luckService, luckItemService);
+        ClientCoreCommands.register(this, configManager, hooks, blockRegenService, clientMobService, clientBuildService, visibilityService, luckService, luckItemService);
 
         for (Player player : getServer().getOnlinePlayers()) {
             luckService.load(player);

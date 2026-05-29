@@ -213,7 +213,105 @@ block-regen:
               material: EMERALD
               amount: 2
 
-    # Example 3: Client-side farming node. Players right-click the fake crop to harvest it.
+    # Example 3: Custom plugin block mining with visual-mode: active-block.
+    # These disabled examples show the supported custom block ID prefixes.
+    oraxen-active-block-ore:
+      enabled: false
+      location:
+        world: world
+        x: 30
+        y: 65
+        z: 30
+      ready-block: oraxen:amethyst_ore
+      cooldown-block: STONE
+      regen-ticks: 300
+      mining:
+        # Sends Oraxen's backing block state directly so vanilla crack overlays render.
+        active-block: oraxen:amethyst_ore
+        visual-mode: active-block
+        default-time-ticks: 80
+        tools:
+          - item:
+              type: vanilla
+              material: IRON_PICKAXE
+            time-ticks: 80
+            drops:
+              - type: vanilla
+                material: AMETHYST_SHARD
+                amount: 2
+
+    itemsadder-active-block-ore:
+      enabled: false
+      location:
+        world: world
+        x: 31
+        y: 65
+        z: 30
+      ready-block: itemsadder:customcrops:ruby_ore
+      cooldown-block: STONE
+      regen-ticks: 300
+      mining:
+        # ItemsAdder IDs are normally namespace:id.
+        active-block: itemsadder:customcrops:ruby_ore
+        visual-mode: active-block
+        default-time-ticks: 80
+        tools:
+          - item:
+              type: vanilla
+              material: IRON_PICKAXE
+            drops:
+              - type: vanilla
+                material: REDSTONE
+                amount: 3
+
+    nexo-active-block-ore:
+      enabled: false
+      location:
+        world: world
+        x: 32
+        y: 65
+        z: 30
+      ready-block: nexo:topaz_ore
+      cooldown-block: STONE
+      regen-ticks: 300
+      mining:
+        active-block: nexo:topaz_ore
+        visual-mode: active-block
+        default-time-ticks: 80
+        tools:
+          - item:
+              type: vanilla
+              material: IRON_PICKAXE
+            drops:
+              - type: vanilla
+                material: GOLD_NUGGET
+                amount: 4
+
+    craftengine-active-block-ore:
+      enabled: false
+      location:
+        world: world
+        x: 33
+        y: 65
+        z: 30
+      ready-block: craftengine:default:tin_ore
+      cooldown-block: STONE
+      regen-ticks: 300
+      mining:
+        # CraftEngine IDs are namespace:id; many packs use default:<id>.
+        active-block: craftengine:default:tin_ore
+        visual-mode: active-block
+        default-time-ticks: 80
+        tools:
+          - item:
+              type: vanilla
+              material: IRON_PICKAXE
+            drops:
+              - type: vanilla
+                material: RAW_IRON
+                amount: 1
+
+    # Example 7: Client-side farming node. Players right-click the fake crop to harvest it.
     wheat-farm:
       enabled: true
       location:

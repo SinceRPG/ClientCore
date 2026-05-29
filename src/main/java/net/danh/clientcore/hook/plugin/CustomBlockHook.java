@@ -45,6 +45,27 @@ public final class CustomBlockHook {
         return Optional.empty();
     }
 
+    public static boolean hasKnownProviderPrefix(String configuredId) {
+        if (configuredId == null || configuredId.isBlank()) {
+            return false;
+        }
+        return providerId(configuredId.trim()).provider() != null;
+    }
+
+    public static String providerName(String configuredId) {
+        if (configuredId == null || configuredId.isBlank()) {
+            return "unknown";
+        }
+        ProviderId providerId = providerId(configuredId.trim());
+        return switch (providerId.provider() == null ? "" : providerId.provider()) {
+            case "oraxen" -> "Oraxen";
+            case "itemsadder", "ia" -> "ItemsAdder";
+            case "nexo" -> "Nexo";
+            case "craftengine", "ce" -> "CraftEngine";
+            default -> "unknown";
+        };
+    }
+
     private static Optional<BlockData> itemsAdder(String id) {
         return invokeStaticBlockData("dev.lone.itemsadder.api.CustomBlock", "getBaseBlockData", id);
     }

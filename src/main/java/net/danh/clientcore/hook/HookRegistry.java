@@ -100,6 +100,33 @@ public final class HookRegistry {
         return fancyNpcs;
     }
 
+    public boolean hasOraxen() {
+        return oraxen;
+    }
+
+    public boolean hasItemsAdder() {
+        return itemsAdder;
+    }
+
+    public boolean hasNexo() {
+        return nexo;
+    }
+
+    public boolean hasCraftEngine() {
+        return craftEngine;
+    }
+
+    public String customBlockHookStatus() {
+        return "Oraxen: " + status(oraxen)
+                + " | ItemsAdder: " + status(itemsAdder)
+                + " | Nexo: " + status(nexo)
+                + " | CraftEngine: " + status(craftEngine);
+    }
+
+    private String status(boolean active) {
+        return active ? "active" : "inactive";
+    }
+
     public Optional<ItemStack> mmoItem(String typeId, String itemId) {
         if (!mmoItems || typeId == null || itemId == null) return Optional.empty();
         return MMOItemsHook.getItem(typeId, itemId);

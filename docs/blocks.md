@@ -274,9 +274,92 @@ Supported prefixes:
 - `nexo:<id>`
 - `craftengine:<namespace:id>`
 
+Concrete examples:
+
+```yaml
+oraxen-active-block-ore:
+  enabled: true
+  location:
+    world: world
+    x: 30
+    y: 65
+    z: 30
+  ready-block: oraxen:amethyst_ore
+  cooldown-block: STONE
+  regen-ticks: 300
+  mining:
+    active-block: oraxen:amethyst_ore
+    visual-mode: active-block
+    default-time-ticks: 80
+
+itemsadder-active-block-ore:
+  enabled: true
+  location:
+    world: world
+    x: 31
+    y: 65
+    z: 30
+  ready-block: itemsadder:customcrops:ruby_ore
+  cooldown-block: STONE
+  regen-ticks: 300
+  mining:
+    active-block: itemsadder:customcrops:ruby_ore
+    visual-mode: active-block
+    default-time-ticks: 80
+
+nexo-active-block-ore:
+  enabled: true
+  location:
+    world: world
+    x: 32
+    y: 65
+    z: 30
+  ready-block: nexo:topaz_ore
+  cooldown-block: STONE
+  regen-ticks: 300
+  mining:
+    active-block: nexo:topaz_ore
+    visual-mode: active-block
+    default-time-ticks: 80
+
+craftengine-active-block-ore:
+  enabled: true
+  location:
+    world: world
+    x: 33
+    y: 65
+    z: 30
+  ready-block: craftengine:default:tin_ore
+  cooldown-block: STONE
+  regen-ticks: 300
+  mining:
+    active-block: craftengine:default:tin_ore
+    visual-mode: active-block
+    default-time-ticks: 80
+```
+
 The resolver asks the custom block plugin for the block state it uses in-game, then sends that state as the active
 mining block. This works for normal block-state based custom blocks. Furniture/entity-based custom blocks cannot use
 vanilla crack overlays because the client is not mining a real block state.
+
+### Troubleshooting Active-Block Custom Blocks
+
+If the custom block does not crack, first run `/clientcore status`. The Oraxen, ItemsAdder, Nexo, or CraftEngine hook
+for the configured prefix must show `active`. Also confirm the matching hook remains `true` in `config.yml`.
+
+If the block resolves to air, check the console after `/clientcore reload`. ClientCore logs the rule, variant, custom ID,
+visual mode, provider, and hook states when `active-block` uses a supported custom ID that cannot resolve to a non-air
+block state.
+
+Common causes:
+
+- The ID prefix is wrong, for example `itemsadder:namespace:id` or `craftengine:namespace:id` is required for namespaced
+  IDs.
+- The custom block is furniture/entity-based instead of backed by a normal block state.
+- The custom block plugin loaded after ClientCore or the hook is disabled; reload ClientCore after the provider plugin is
+  enabled.
+- The provider returns `AIR` for that ID. Use a block-state based custom block, or switch back to `visual-mode:
+  block-display` with a hard `active-block` such as `BARRIER`.
 
 `feedback` adds non-vanilla progress feedback for the `BARRIER + BlockDisplay` mode. `display` creates a player-only
 `TextDisplay` progress bar above the block, and particles/sounds provide extra local feedback while the server-side
