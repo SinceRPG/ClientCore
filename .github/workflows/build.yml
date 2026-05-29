@@ -146,7 +146,11 @@ jobs:
 
             JAR_FILE=$(find build/libs -maxdepth 1 -name "*-all.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
             if [ -n "$JAR_FILE" ] && [ -f "$JAR_FILE" ]; then
-              curl -s -X PATCH -F "payload_json=<build_success.json;type=application/json" -F "file=@$JAR_FILE" "${WEBHOOK_URL}/messages/${MSG_ID}?thread_id=${THREAD_ID}"
+              COMMIT_COUNT=$(git rev-list --count HEAD)
+              mkdir -p discord_upload
+              RENAMED_JAR="discord_upload/ClientCore-build-${COMMIT_COUNT}.jar"
+              cp "$JAR_FILE" "$RENAMED_JAR"
+              curl -s -X PATCH -F "payload_json=<build_success.json;type=application/json" -F "file=@$RENAMED_JAR" "${WEBHOOK_URL}/messages/${MSG_ID}?thread_id=${THREAD_ID}"
             else
               curl -s -X PATCH -H "Content-Type: application/json" -d @build_success.json "${WEBHOOK_URL}/messages/${MSG_ID}?thread_id=${THREAD_ID}"
             fi
