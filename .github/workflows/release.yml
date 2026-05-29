@@ -185,5 +185,5 @@ jobs:
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PAT }}
-          repository: SinceRPG/DaWeb
+          repository: VoChiDanh/DaWeb
           event-type: update-catalog
