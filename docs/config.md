@@ -60,10 +60,16 @@ hooks:
   placeholderapi: true
   worldguard: true
   mmoitems: true
+  sinceenchantments: true
   mythicmobs: true
+  mmocore: true
   modelengine: true
   citizens: true
   fancynpcs: true
+  oraxen: true
+  itemsadder: true
+  nexo: true
+  craftengine: true
 ```
 
 Set unused hooks to `false` if the plugin is not installed. ClientCore checks whether the plugin is actually enabled

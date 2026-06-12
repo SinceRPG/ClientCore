@@ -56,6 +56,8 @@ public final class ClientCoreCommands {
                                 "{vanilla_mining}", String.valueOf(blockService.vanillaMiningRuleCount()),
                                 "{farming}", String.valueOf(blockService.farmingRuleCount()),
                                 "{mobs}", String.valueOf(mobService.ruleCount()),
+                                "{mmoitems}", hookState(hooks.hasMmoItems()),
+                                "{sinceenchantments}", hookState(hooks.hasSinceEnchantments()),
                                 "{oraxen}", hookState(hooks.hasOraxen()),
                                 "{itemsadder}", hookState(hooks.hasItemsAdder()),
                                 "{nexo}", hookState(hooks.hasNexo()),

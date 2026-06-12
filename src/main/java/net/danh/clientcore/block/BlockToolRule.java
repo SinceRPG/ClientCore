@@ -13,6 +13,7 @@ record BlockToolRule(
         List<BlockEnchantRule> enchants,
         int timeTicks,
         int regenTicks,
+        List<ProfessionExpReward> professionExp,
         List<ConfigurationSection> drops
 ) {
 }

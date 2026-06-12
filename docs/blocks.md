@@ -84,9 +84,31 @@ block-regen:
   refresh-period-ticks: 40
   join-delay-ticks: 5
   default-worldguard-flag: clientcore-regen
+  enchant-effects:
+    efficiency:
+      enabled: true
+      reduction-percent-formula: "level * random(1, level)"
+      min-time-ticks: 1
+    fortune:
+      enabled: true
+      bonus-amount-formula: "random(0, level)"
+    custom:
+      - type: sinceenchantments
+        id: excavator
+        mode: time-reduction
+        formula: "level * 3"
+        min-time-ticks: 1
+      - type: sinceenchantments
+        id: fortune_plus
+        mode: drop-bonus
+        formula: "random(0, level)"
 ```
 
 If you use direct rule style only, these settings fall back to defaults.
+
+`block-regen.enchant-effects` applies to client-side block regen mining. If it is omitted, ClientCore falls back to
+`vanilla-mining.enchant-effects`, then top-level `enchant-effects`. `custom` is a list; ClientCore reads each entry
+without adding synthetic keys back into the live Bukkit config tree.
 
 ## Vanilla Mining
 
@@ -131,6 +153,8 @@ vanilla-mining:
               mmo-type: TOOL
               mmo-id: STARTER_PICKAXE
             time-ticks: 40
+            mmocore-exp:
+              mining: 4
             drops:
               - type: mmoitems
                 mmo-type: MATERIAL
@@ -139,7 +163,7 @@ vanilla-mining:
 ```
 
 Vanilla mining supports the same `mining.feedback`, `tools`, vanilla item matching, MMOItems tool matching, conditions,
-and MMOItems rewards as client-side block regen mining.
+MMOItems rewards, and optional MMOCore profession EXP as client-side block regen mining.
 
 Enchant behavior is applied at runtime after a tool rule chooses the base `time-ticks` and drops:
 
@@ -150,10 +174,12 @@ Formula variables include `level`, plus `base`/`time` for Efficiency and `base`/
 are `random(min,max)`, `min(a,b)`, `max(a,b)`, `floor(x)`, `ceil(x)`, and `round(x)`.
 
 Tool rules can still require enchantments as a gate. Vanilla enchantments use Bukkit/Paper enchant keys; un-namespaced
-keys default to `minecraft:`.
+keys default to `minecraft:`. When SinceEnchantments is active, ClientCore also checks SinceEnchantments' combined
+enchant map for the same requirement, so vanilla and custom enchant levels can both satisfy configured enchant gates.
 
 ```yaml
 tools:
+  # 1) Vanilla shorthand on a vanilla tool.
   - item:
       type: vanilla
       material: DIAMOND_PICKAXE
@@ -161,12 +187,55 @@ tools:
       efficiency: 3
       silk_touch: 1
     time-ticks: 70
+
+  # 2) Vanilla object form on an MMOItems tool.
+  - item:
+      type: mmoitems
+      mmo-type: TOOL
+      mmo-id: STARTER_PICKAXE
+    enchants:
+      fortune:
+        type: vanilla
+        min-level: 2
+    time-ticks: 40
+```
+
+SinceEnchantments custom IDs can use `custom-enchants` on the same tool rule. These checks work with vanilla, MMOItems,
+and `any` tool rules when `hooks.sinceenchantments` is enabled and the SinceEnchantments plugin is installed. You can
+also put a SinceEnchantments ID under `enchants` with `type: sinceenchantments` if you prefer one list.
+
+```yaml
+tools:
+  # 3) SinceEnchantments dedicated list on an MMOItems tool.
+  - item:
+      type: mmoitems
+      mmo-type: TOOL
+      mmo-id: STARTER_PICKAXE
+    custom-enchants:
+      - type: sinceenchantments
+        id: excavator
+        min-level: 1
+    time-ticks: 40
+
+  # 4) SinceEnchantments object form inside enchants.
   - item:
       type: vanilla
       material: NETHERITE_PICKAXE
     enchants:
-      fortune: 2
+      excavator:
+        type: sinceenchantments
+        min-level: 1
     time-ticks: 45
+
+  # 5) Any item, but still require both vanilla and custom enchant gates.
+  - item:
+      type: any
+    enchants:
+      efficiency: 2
+      excavator:
+        type: sinceenchantments
+        min-level: 1
+    time-ticks: 55
 ```
 
 Tool-specific drops are preferred:
@@ -233,9 +302,36 @@ drops:
     mmo-type: MATERIAL
     mmo-id: RARE_STONE
     material: STONE
+    amount: 2
 ```
 
-If MMOItems cannot return the item, ClientCore falls back to the vanilla `material`.
+If MMOItems cannot return the item, ClientCore falls back to the vanilla `material`. MMOItems drops support `amount`
+the same way vanilla drops do, including Fortune/custom drop-bonus scaling during mining.
+
+## MMOCore Profession EXP
+
+Add `mmocore-exp` or `profession-exp` to a block rule, variant, vanilla-mining block, farming stage, or tool rule to give
+MMOCore profession experience when the action succeeds. This is optional: if MMOCore is not installed, or
+`hooks.mmocore` is `false`, ClientCore ignores these rewards safely.
+
+Tool-level profession EXP overrides the rule, variant, vanilla block, or farming stage EXP for the matching tool.
+
+```yaml
+mmocore-exp:
+  mining: 4
+  farming: 2
+  fishing: 1
+```
+
+List style is also supported:
+
+```yaml
+profession-exp:
+  - profession: mining
+    amount: 4
+  - profession: farming
+    amount: 2
+```
 
 ## Custom Mining
 
@@ -269,6 +365,8 @@ mining:
         efficiency: 2
       time-ticks: 80
       regen-ticks: 100
+      mmocore-exp:
+        mining: 3
       drops:
         - type: vanilla
           material: RAW_IRON
@@ -463,6 +561,7 @@ matching tool has no `drops`, ClientCore uses the normal variant/rule drops.
 If `stages` is set, stage drops are used before the normal variant/rule `drops`. Players can harvest at any stage:
 stage `WHEAT[age=3]` can give one reward, while the final mature stage `WHEAT[age=7]` can give wheat. `after-ticks`
 is the delay before that stage appears after the previous stage. The first stage is sent immediately after harvest.
+Stage-level `mmocore-exp` works the same way as stage drops.
 
 Supported stage block formats:
 

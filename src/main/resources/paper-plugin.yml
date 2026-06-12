@@ -16,7 +16,13 @@ dependencies:
     MMOItems:
       load: BEFORE
       required: false
+    SinceEnchantments:
+      load: BEFORE
+      required: false
     MythicMobs:
+      load: BEFORE
+      required: false
+    MMOCore:
       load: BEFORE
       required: false
     ModelEngine:

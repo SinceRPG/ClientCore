@@ -23,7 +23,7 @@ Reload configuration:
 /clientcore reload
 ```
 
-Show loaded block regen, vanilla mining, farming, mob rule counts, and custom block hook status:
+Show loaded block regen, vanilla mining, farming, mob rule counts, MMOItems/SinceEnchantments status, and custom block hook status:
 
 ```text
 /clientcore status
@@ -43,7 +43,8 @@ Toggle debug:
 ```
 
 When enabled, mining and farming logs include the matched tool rule, whether the tool match was vanilla or MMOItems,
-and whether drops came from the tool, the block, or the natural break fallback.
+configured enchant requirement levels, SinceEnchantments hook state, and whether drops came from the tool, the block, or
+the natural break fallback.
 
 ## Client Builds
 

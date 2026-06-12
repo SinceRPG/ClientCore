@@ -11,6 +11,7 @@ record VanillaBlockMiningRule(
         List<String> conditions,
         String worldGuardFlag,
         BlockMiningConfig mining,
+        List<ProfessionExpReward> professionExp,
         List<ConfigurationSection> drops
 ) {
 }

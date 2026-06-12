@@ -4,7 +4,7 @@
 
 - Paper/Folia API target: `26.1.2` only.
 - Required plugin: `PacketEvents` `2.12.1`.
-- Optional hooks: `PlaceholderAPI`, `WorldGuard`, `MMOItems`, `MythicMobs`.
+- Optional hooks: `PlaceholderAPI`, `WorldGuard`, `MMOItems`, `SinceEnchantments`, `MythicMobs`.
 - Build command: `.\gradlew.bat build`.
 - Output jar: `build/libs/ClientCore-1.0-all.jar`.
 

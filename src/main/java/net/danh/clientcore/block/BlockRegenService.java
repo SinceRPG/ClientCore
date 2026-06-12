@@ -224,7 +224,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
 
         Location loc = match.rule().location();
-        scheduler.region(loc, () -> handleBlockBreak(player, match, match.variant().drops(), match.variant().regenTicks()));
+        scheduler.region(loc, () -> handleBlockBreak(player, match, match.variant().drops(), match.variant().professionExp(), match.variant().regenTicks()));
     }
 
     private Optional<VanillaBlockMiningRule> vanillaRuleFor(Player player, Block block) {
@@ -272,9 +272,10 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         List<ConfigurationSection> drops = tool.filter(toolRule -> !toolRule.drops().isEmpty())
                 .map(BlockToolRule::drops)
                 .orElse(rule.drops());
+        List<ProfessionExpReward> professionExp = professionExp(tool.orElse(null), rule.professionExp());
         debugDrops(player, "vanilla-mining", rule.material().name(), dropSource);
         int entityId = Objects.hash(player.getUniqueId(), "vanilla", location.getWorld().getUID(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
-        VanillaMiningSession session = new VanillaMiningSession(location, rule, tool.orElse(null), entityId, drops, timeTicks, 0, -1, null);
+        VanillaMiningSession session = new VanillaMiningSession(location, rule, tool.orElse(null), entityId, drops, professionExp, timeTicks, 0, -1, null);
         vanillaMiningSessions.put(player.getUniqueId(), session);
         CompatTask task = scheduler.regionTimer(location, 1L, 1L, ignored -> tickVanillaMining(player));
         VanillaMiningSession stored = vanillaMiningSessions.get(player.getUniqueId());
@@ -363,10 +364,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             debug(player, "vanilla-mining " + session.rule().material().name() + " using natural break fallback drops");
             ItemStack tool = player.getInventory().getItemInMainHand();
             block.breakNaturally(tool);
+            giveProfessionExp(player, session.professionExp());
             return;
         }
         block.setType(Material.AIR);
         scheduler.entity(player, () -> giveDrops(player, session.drops(), true));
+        giveProfessionExp(player, session.professionExp());
     }
 
     private void cancelVanillaMining(Player player, int x, int y, int z, boolean clearAnimation) {
@@ -405,7 +408,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                 && first.getBlockZ() == second.getBlockZ();
     }
 
-    private void handleBlockBreak(Player player, BlockMatch match, List<ConfigurationSection> drops, int regenTicks) {
+    private void handleBlockBreak(Player player, BlockMatch match, List<ConfigurationSection> drops, List<ProfessionExpReward> professionExp, int regenTicks) {
         BlockRule rule = match.rule();
         BlockVariant variant = match.variant();
         Set<String> active = regenerating.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet());
@@ -425,6 +428,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         sendBlockData(player, rule.location(), cooldownData);
 
         scheduler.entity(player, () -> giveDrops(player, drops, true));
+        giveProfessionExp(player, professionExp);
 
         scheduler.regionLater(rule.location(), Math.max(1, regenTicks), task -> {
             if (player.isOnline()) {
@@ -466,16 +470,18 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         List<ConfigurationSection> drops = tool.filter(rule -> !rule.drops().isEmpty())
                 .map(BlockToolRule::drops)
                 .orElse(stageDrops.isEmpty() ? match.variant().drops() : stageDrops);
+        List<ProfessionExpReward> professionExp = professionExp(tool.orElse(null), farmingProfessionExp(player, match));
         debugDrops(player, "farming", match.rule().id() + "/" + match.variant().id(), dropSource);
         cancelMining(player, true);
         if (match.variant().farming().stages().isEmpty()) {
-            scheduler.region(match.rule().location(), () -> handleBlockBreak(player, match, drops, match.variant().regenTicks()));
+            scheduler.region(match.rule().location(), () -> handleBlockBreak(player, match, drops, professionExp, match.variant().regenTicks()));
             return;
         }
         scheduler.region(match.rule().location(), () -> {
             miningVisuals.clear(player);
             sendBlockData(player, match.rule().location(), farmingStageBlockData(match, 0));
             scheduler.entity(player, () -> giveDrops(player, drops, false));
+            giveProfessionExp(player, professionExp);
             startFarmingGrowth(player, match);
         });
     }
@@ -488,6 +494,19 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         FarmingState state = farmingState(player, match.rule().id());
         int index = state == null ? stages.size() - 1 : Math.max(0, Math.min(state.stageIndex(), stages.size() - 1));
         return stages.get(index).drops();
+    }
+
+    private List<ProfessionExpReward> farmingProfessionExp(Player player, BlockMatch match) {
+        List<BlockFarmingStage> stages = match.variant().farming().stages();
+        if (!stages.isEmpty()) {
+            FarmingState state = farmingState(player, match.rule().id());
+            int index = state == null ? stages.size() - 1 : Math.max(0, Math.min(state.stageIndex(), stages.size() - 1));
+            List<ProfessionExpReward> stageExp = stages.get(index).professionExp();
+            if (!stageExp.isEmpty()) {
+                return stageExp;
+            }
+        }
+        return match.variant().professionExp();
     }
 
     private void startFarmingGrowth(Player player, BlockMatch match) {
@@ -590,12 +609,13 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         List<ConfigurationSection> drops = tool.filter(rule -> !rule.drops().isEmpty())
                 .map(BlockToolRule::drops)
                 .orElse(match.variant().drops());
+        List<ProfessionExpReward> professionExp = professionExp(tool.orElse(null), match.variant().professionExp());
         debugDrops(player, "block-regen-mining", match.rule().id() + "/" + match.variant().id(), dropSource);
         int regenTicks = tool.map(BlockToolRule::regenTicks)
                 .filter(ticks -> ticks > 0)
                 .orElse(match.variant().regenTicks());
         int entityId = breakAnimationEntityId(player, match.rule());
-        MiningSession session = new MiningSession(match.rule().id(), match.rule().location(), tool.orElse(null), entityId, drops, timeTicks, regenTicks, 0, -1, null, null);
+        MiningSession session = new MiningSession(match.rule().id(), match.rule().location(), tool.orElse(null), entityId, drops, professionExp, timeTicks, regenTicks, 0, -1, null, null);
         miningSessions.put(player.getUniqueId(), session);
         miningVisuals.show(player, match.rule().location(), match.variant().readyBlock(), match.variant().mining().feedback(), match.variant().mining().blockDisplayOverlay());
         sendCurrentVisualBlock(player, match);
@@ -682,7 +702,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             }
             clearBreakAnimation(player, match.rule());
             miningVisuals.clear(player);
-            handleBlockBreak(player, match, session.drops(), session.regenTicks());
+            handleBlockBreak(player, match, session.drops(), session.professionExp(), session.regenTicks());
             resendCurrentVisualBlock(player, match, 2L);
             resendCurrentVisualBlock(player, match, 5L);
             return;
@@ -752,7 +772,19 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     }
 
     private int enchantLevel(ItemStack item, BlockEnchantRule rule) {
-        NamespacedKey key = enchantKey(rule.id());
+        if ("sinceenchantments".equalsIgnoreCase(rule.type()) || "since".equalsIgnoreCase(rule.type())) {
+            return hooks.sinceEnchantLevel(item, rule.id());
+        }
+        int vanillaLevel = vanillaEnchantLevel(item, rule.id());
+        int sinceLevel = hooks.sinceEnchantLevel(item, rule.id());
+        return Math.max(vanillaLevel, sinceLevel);
+    }
+
+    private int vanillaEnchantLevel(ItemStack item, String id) {
+        if (item == null || item.isEmpty()) {
+            return 0;
+        }
+        NamespacedKey key = enchantKey(id);
         if (key == null) {
             return 0;
         }
@@ -806,7 +838,8 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
         BlockToolRule matched = tool.get();
         debug(player, feature + " " + target + " matched tool rule " + describeTool(matched)
-                + " via " + toolMatchSource(matched) + " for held item " + heldItemName(player));
+                + " via " + toolMatchSource(matched) + " for held item " + heldItemName(player)
+                + enchantDebugSuffix(player.getInventory().getItemInMainHand(), matched));
     }
 
     private void debugDrops(Player player, String feature, String target, String source) {
@@ -854,6 +887,16 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             return "any";
         }
         return "vanilla";
+    }
+
+    private String enchantDebugSuffix(ItemStack item, BlockToolRule rule) {
+        if (rule.enchants().isEmpty()) {
+            return "";
+        }
+        return " enchant-checks=" + rule.enchants().stream()
+                .map(enchant -> enchant.type() + ":" + enchant.id() + " level=" + enchantLevel(item, enchant) + "/" + enchant.minLevel())
+                .toList()
+                + " SinceEnchantments=" + (hooks.hasSinceEnchantments() ? "active" : "inactive");
     }
 
     private String heldItemName(Player player) {
@@ -1228,48 +1271,78 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     }
 
     private int applyEfficiency(ItemStack tool, int baseTimeTicks) {
-        if (!miningEnchantEffects.efficiencyEnabled()) {
-            return baseTimeTicks;
+        int timeTicks = baseTimeTicks;
+        if (miningEnchantEffects.efficiencyEnabled()) {
+            int level = vanillaEnchantLevel(tool, "efficiency");
+            if (level > 0) {
+                double reductionPercent = Formula.evaluate(miningEnchantEffects.efficiencyFormula(), Map.of(
+                        "base", (double) baseTimeTicks,
+                        "time", (double) baseTimeTicks,
+                        "level", (double) level
+                ), new Random(), 0.0D);
+                int adjusted = (int) Math.round(timeTicks - (timeTicks * Math.max(0.0D, reductionPercent) / 100.0D));
+                timeTicks = Math.max(miningEnchantEffects.minTimeTicks(), adjusted);
+            }
         }
-        int level = vanillaEnchantLevel(tool, "efficiency");
-        if (level <= 0) {
-            return baseTimeTicks;
+        for (MiningEnchantEffects.CustomEnchantEffect effect : miningEnchantEffects.custom()) {
+            if (!"TIME_REDUCTION".equals(effect.mode())) {
+                continue;
+            }
+            int level = customEffectLevel(tool, effect);
+            if (level <= 0) {
+                continue;
+            }
+            double reductionPercent = Formula.evaluate(effect.formula(), Map.of(
+                    "base", (double) baseTimeTicks,
+                    "time", (double) timeTicks,
+                    "level", (double) level
+            ), new Random(), 0.0D);
+            int adjusted = (int) Math.round(timeTicks - (timeTicks * Math.max(0.0D, reductionPercent) / 100.0D));
+            timeTicks = Math.max(effect.minTimeTicks(), adjusted);
         }
-        double reductionPercent = Formula.evaluate(miningEnchantEffects.efficiencyFormula(), Map.of(
-                "base", (double) baseTimeTicks,
-                "time", (double) baseTimeTicks,
-                "level", (double) level
-        ), new Random(), 0.0D);
-        int adjusted = (int) Math.round(baseTimeTicks - (baseTimeTicks * Math.max(0.0D, reductionPercent) / 100.0D));
-        return Math.max(miningEnchantEffects.minTimeTicks(), adjusted);
-    }
-
-    private int vanillaEnchantLevel(ItemStack item, String id) {
-        if (item == null || item.isEmpty()) {
-            return 0;
-        }
-        NamespacedKey key = enchantKey(id);
-        if (key == null) {
-            return 0;
-        }
-        Enchantment enchantment = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(key);
-        return enchantment == null ? 0 : item.getEnchantmentLevel(enchantment);
+        return timeTicks;
     }
 
     private int fortuneBonus(ItemStack tool, int amount) {
-        if (!miningEnchantEffects.fortuneEnabled() || vanillaEnchantLevel(tool, "silk_touch") > 0) {
+        if (vanillaEnchantLevel(tool, "silk_touch") > 0) {
+            return 0;
+        }
+        if (amount <= 0) {
             return 0;
         }
         int level = vanillaEnchantLevel(tool, "fortune");
-        if (level <= 0 || amount <= 0) {
-            return 0;
+        int total = 0;
+        if (miningEnchantEffects.fortuneEnabled() && level > 0) {
+            double bonus = Formula.evaluate(miningEnchantEffects.fortuneBonusFormula(), Map.of(
+                    "base", (double) amount,
+                    "amount", (double) amount,
+                    "level", (double) level
+            ), new Random(), 0.0D);
+            total += Math.max(0, (int) Math.floor(bonus));
         }
-        double bonus = Formula.evaluate(miningEnchantEffects.fortuneBonusFormula(), Map.of(
-                "base", (double) amount,
-                "amount", (double) amount,
-                "level", (double) level
-        ), new Random(), 0.0D);
-        return Math.max(0, (int) Math.floor(bonus));
+        for (MiningEnchantEffects.CustomEnchantEffect effect : miningEnchantEffects.custom()) {
+            if (!"DROP_BONUS".equals(effect.mode())) {
+                continue;
+            }
+            int customLevel = customEffectLevel(tool, effect);
+            if (customLevel <= 0) {
+                continue;
+            }
+            double bonus = Formula.evaluate(effect.formula(), Map.of(
+                    "base", (double) amount,
+                    "amount", (double) amount,
+                    "level", (double) customLevel
+            ), new Random(), 0.0D);
+            total += Math.max(0, (int) Math.floor(bonus));
+        }
+        return total;
+    }
+
+    private int customEffectLevel(ItemStack tool, MiningEnchantEffects.CustomEnchantEffect effect) {
+        if ("sinceenchantments".equalsIgnoreCase(effect.type()) || "since".equalsIgnoreCase(effect.type())) {
+            return hooks.sinceEnchantLevel(tool, effect.id());
+        }
+        return vanillaEnchantLevel(tool, effect.id());
     }
 
     private void giveDrops(Player player, List<ConfigurationSection> drops, boolean applyFortune) {
@@ -1287,8 +1360,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                 hooks.mmoItem(drop.getString("mmo-type"), drop.getString("mmo-id"))
                         .ifPresentOrElse(item -> {
                             ItemStack copy = item.clone();
-                            if (applyFortune && !copy.isEmpty()) {
-                                copy.setAmount(Math.min(copy.getMaxStackSize(), copy.getAmount() + fortuneBonus(tool, copy.getAmount())));
+                            if (!copy.isEmpty()) {
+                                int amount = Math.max(1, drop.getInt("amount", copy.getAmount()));
+                                if (applyFortune) {
+                                    amount += fortuneBonus(tool, amount);
+                                }
+                                copy.setAmount(Math.min(copy.getMaxStackSize(), amount));
                             }
                             items.add(copy);
                         }, () -> {
@@ -1314,6 +1391,22 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
     }
 
+    private List<ProfessionExpReward> professionExp(BlockToolRule tool, List<ProfessionExpReward> fallback) {
+        if (tool != null && !tool.professionExp().isEmpty()) {
+            return tool.professionExp();
+        }
+        return fallback == null ? List.of() : fallback;
+    }
+
+    private void giveProfessionExp(Player player, List<ProfessionExpReward> rewards) {
+        if (rewards == null || rewards.isEmpty() || !hooks.hasMmoCore()) {
+            return;
+        }
+        for (ProfessionExpReward reward : rewards) {
+            hooks.giveMmoCoreProfessionExp(player, reward.profession(), reward.amount());
+        }
+    }
+
     private record BlockMatch(BlockRule rule, BlockVariant variant) {
     }
 
@@ -1323,6 +1416,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             BlockToolRule tool,
             int animationEntityId,
             List<ConfigurationSection> drops,
+            List<ProfessionExpReward> professionExp,
             int timeTicks,
             int regenTicks,
             int elapsedTicks,
@@ -1331,11 +1425,11 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             CompatTask timeoutTask
     ) {
         MiningSession withTask(CompatTask task, CompatTask timeoutTask) {
-            return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, regenTicks, elapsedTicks, stage, task, timeoutTask);
+            return new MiningSession(ruleId, location, tool, animationEntityId, drops, professionExp, timeTicks, regenTicks, elapsedTicks, stage, task, timeoutTask);
         }
 
         MiningSession withProgress(int elapsedTicks, int stage) {
-            return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, regenTicks, elapsedTicks, stage, task, timeoutTask);
+            return new MiningSession(ruleId, location, tool, animationEntityId, drops, professionExp, timeTicks, regenTicks, elapsedTicks, stage, task, timeoutTask);
         }
     }
 
@@ -1345,17 +1439,18 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             BlockToolRule tool,
             int animationEntityId,
             List<ConfigurationSection> drops,
+            List<ProfessionExpReward> professionExp,
             int timeTicks,
             int elapsedTicks,
             int stage,
             CompatTask task
     ) {
         VanillaMiningSession withTask(CompatTask task) {
-            return new VanillaMiningSession(location, rule, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task);
+            return new VanillaMiningSession(location, rule, tool, animationEntityId, drops, professionExp, timeTicks, elapsedTicks, stage, task);
         }
 
         VanillaMiningSession withProgress(int elapsedTicks, int stage) {
-            return new VanillaMiningSession(location, rule, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task);
+            return new VanillaMiningSession(location, rule, tool, animationEntityId, drops, professionExp, timeTicks, elapsedTicks, stage, task);
         }
     }
 

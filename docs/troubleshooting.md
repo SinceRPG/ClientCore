@@ -82,7 +82,8 @@ Common checks:
 - Put tool-specific rewards under `vanilla-mining.blocks.<BLOCK>.mining.tools[].drops`.
 - Confirm the held item matches the configured tool. If no tool `drops` match, ClientCore falls back to block-level
   `drops`, then to natural vanilla drops.
-- Turn on `/clientcore debug on` to log the matched tool rule, vanilla/MMOItems match source, and drop source.
+- Turn on `/clientcore debug on` to log the matched tool rule, vanilla/MMOItems match source, enchant requirement
+  levels, SinceEnchantments hook state, and drop source.
 - Remove WorldGuard flag restrictions while testing, or leave `default-worldguard-flag: ""`.
 
 ## MythicMob Spawns But Model Is Visible To Everyone
@@ -101,6 +102,13 @@ unless the skill config is written to target only the owner or your server logic
 - For MMOItems, confirm `hooks.mmoitems: true`.
 - Confirm the MMOItems type and ID exist.
 - Add a vanilla `material` fallback.
+
+## SinceEnchantments Tool Requirements Do Not Match
+
+- Run `/clientcore status` and confirm `SinceEnchantments: active`.
+- Confirm `hooks.sinceenchantments: true`.
+- Use `custom-enchants` for SinceEnchantments IDs; plain `enchants` is for vanilla Bukkit/Paper enchantments by default.
+- Turn on `/clientcore debug on` and check the logged `enchant-checks` levels for the held tool.
 
 ## Config Changes Do Not Apply
 

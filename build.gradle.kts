@@ -15,6 +15,7 @@ repositories {
     maven("https://nexus.phoenixdevt.fr/repository/maven-public/")
     maven("https://repo.citizensnpcs.co/")
     maven("https://repo.fancyinnovations.com/releases")
+    maven("https://jitpack.io")
 }
 
 dependencies {
@@ -30,6 +31,8 @@ dependencies {
     compileOnly("io.lumine:Mythic-Dist:5.12.0-SNAPSHOT") { isTransitive = false }
     compileOnly("io.lumine:MythicLib-dist:1.7.1-SNAPSHOT") { isTransitive = false }
     compileOnly("net.Indyuce:MMOItems-API:6.10.1-SNAPSHOT") { isTransitive = false }
+    compileOnly("net.Indyuce:MMOCore-API:1.13.1-SNAPSHOT") { isTransitive = false }
+    compileOnly("com.github.SinceRPG:SinceEnchantments:v1.2.4") { isTransitive = false }
     compileOnly("com.ticxo.modelengine:ModelEngine:R4.1.0") { isTransitive = false }
 
     // Optional NPC Hooks

@@ -12,6 +12,12 @@ import net.danh.clientcore.hook.plugin.CustomBlockHook;
 import net.danh.clientcore.hook.plugin.FancyNpcsHook;
 import net.danh.clientcore.hook.plugin.MMOItemsHook;
 import net.danh.clientcore.hook.plugin.MythicMobsHook;
+import net.danh.clientcore.hook.plugin.SinceEnchantmentsHook;
+import net.Indyuce.mmocore.MMOCore;
+import net.Indyuce.mmocore.api.player.PlayerData;
+import net.Indyuce.mmocore.experience.EXPSource;
+import net.Indyuce.mmocore.experience.Profession;
+import net.danh.sinceenchantments.SinceEnchantments;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.block.data.BlockData;
@@ -21,6 +27,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 public final class HookRegistry {
@@ -37,6 +44,8 @@ public final class HookRegistry {
     private boolean itemsAdder;
     private boolean nexo;
     private boolean craftEngine;
+    private boolean mmoCore;
+    private boolean sinceEnchantments;
 
     public HookRegistry(Plugin plugin, ConfigManager config) {
         this.plugin = plugin;
@@ -56,6 +65,8 @@ public final class HookRegistry {
         this.itemsAdder = enabled("itemsadder") && Bukkit.getPluginManager().isPluginEnabled("ItemsAdder");
         this.nexo = enabled("nexo") && Bukkit.getPluginManager().isPluginEnabled("Nexo");
         this.craftEngine = enabled("craftengine") && Bukkit.getPluginManager().isPluginEnabled("CraftEngine");
+        this.mmoCore = enabled("mmocore") && Bukkit.getPluginManager().isPluginEnabled("MMOCore");
+        this.sinceEnchantments = enabled("sinceenchantments") && Bukkit.getPluginManager().isPluginEnabled("SinceEnchantments");
     }
 
     private boolean enabled(String key) {
@@ -116,11 +127,24 @@ public final class HookRegistry {
         return craftEngine;
     }
 
+    public boolean hasMmoCore() {
+        return mmoCore;
+    }
+
+    public boolean hasSinceEnchantments() {
+        return sinceEnchantments;
+    }
+
     public String customBlockHookStatus() {
         return "Oraxen: " + status(oraxen)
                 + " | ItemsAdder: " + status(itemsAdder)
                 + " | Nexo: " + status(nexo)
                 + " | CraftEngine: " + status(craftEngine);
+    }
+
+    public String toolHookStatus() {
+        return "MMOItems: " + status(mmoItems)
+                + " | SinceEnchantments: " + status(sinceEnchantments);
     }
 
     private String status(boolean active) {
@@ -138,6 +162,38 @@ public final class HookRegistry {
 
     public boolean mmoItemMatches(ItemStack item, String typeId, String itemId) {
         return mmoItems && MMOItemsHook.matches(item, typeId, itemId);
+    }
+
+    public int sinceEnchantLevel(ItemStack item, String enchantId) {
+        if (!sinceEnchantments) {
+            return 0;
+        }
+        Plugin plugin = Bukkit.getPluginManager().getPlugin("SinceEnchantments");
+        if (!(plugin instanceof SinceEnchantments sincePlugin)) {
+            return 0;
+        }
+        return SinceEnchantmentsHook.enchantLevel(sincePlugin, item, enchantId);
+    }
+
+    public boolean giveMmoCoreProfessionExp(Player player, String profession, double amount) {
+        if (!mmoCore || player == null || profession == null || profession.isBlank() || amount <= 0.0D) {
+            return false;
+        }
+        PlayerData data = PlayerData.get(player.getUniqueId());
+        if (profession.equalsIgnoreCase("main") || profession.equalsIgnoreCase("class")) {
+            data.giveExperience(amount, EXPSource.SOURCE);
+            return true;
+        }
+        Profession mmocoreProfession = MMOCore.plugin.professionManager.get(normalizeMmoCoreProfession(profession));
+        if (mmocoreProfession == null) {
+            return false;
+        }
+        data.getCollectionSkills().giveExperience(mmocoreProfession, amount, EXPSource.SOURCE);
+        return true;
+    }
+
+    private String normalizeMmoCoreProfession(String profession) {
+        return profession.trim().toLowerCase(Locale.ROOT).replace("_", "-").replace(" ", "-");
     }
 
     public Optional<Entity> mythicMob(String mobId, Location location, double level) {

@@ -11,7 +11,7 @@ commands:
   only-players: "<red>Only players can execute this command."
   player-not-found: "<red>Player not found or is offline."
   reloaded: "<green>ClientCore configurations reloaded successfully."
-  status: "<aqua>ClientCore</aqua> <gray>Block Regen: {blocks} | Vanilla Mining: {vanilla_mining} | Farming: {farming} | Mobs: {mobs} | Oraxen: {oraxen} | ItemsAdder: {itemsadder} | Nexo: {nexo} | CraftEngine: {craftengine}</gray>"
+  status: "<aqua>ClientCore</aqua> <gray>Block Regen: {blocks} | Vanilla Mining: {vanilla_mining} | Farming: {farming} | Mobs: {mobs} | MMOItems: {mmoitems} | SinceEnchantments: {sinceenchantments} | Oraxen: {oraxen} | ItemsAdder: {itemsadder} | Nexo: {nexo} | CraftEngine: {craftengine}</gray>"
   
   # Action messages
   blocks-refreshed: "<green>Refreshed client-side blocks around you."

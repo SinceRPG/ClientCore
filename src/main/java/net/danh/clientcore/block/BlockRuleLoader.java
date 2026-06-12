@@ -61,6 +61,10 @@ final class BlockRuleLoader {
                 if (variantDrops.isEmpty()) {
                     variantDrops = drops;
                 }
+                List<ProfessionExpReward> variantProfessionExp = loadProfessionExp(variant);
+                if (variantProfessionExp.isEmpty()) {
+                    variantProfessionExp = loadProfessionExp(section);
+                }
                 variants.add(new BlockVariant(
                         variant.getString("id", "variant_" + variants.size()),
                         variantReady,
@@ -72,6 +76,7 @@ final class BlockRuleLoader {
                         Math.max(1, variant.getInt("regen-ticks", section.getInt("regen-ticks", 100))),
                         loadMining(variant, section),
                         loadFarming(variant, section),
+                        variantProfessionExp,
                         variantDrops
                 ));
             }
@@ -87,6 +92,7 @@ final class BlockRuleLoader {
                         Math.max(1, section.getInt("regen-ticks", 100)),
                         loadMining(section, null),
                         loadFarming(section, null),
+                        loadProfessionExp(section),
                         drops
                 ));
             }
@@ -131,6 +137,7 @@ final class BlockRuleLoader {
                     section.getStringList("conditions"),
                     section.getString("worldguard-flag", defaultFlag),
                     loadMining(section, null),
+                    loadProfessionExp(section),
                     drops
             ));
         }
@@ -187,6 +194,7 @@ final class BlockRuleLoader {
             stages.add(new BlockFarmingStage(
                     block == null ? "" : block,
                     Math.max(1, stage.getInt("after-ticks", stage.getInt("ticks", 1))),
+                    loadProfessionExp(stage),
                     drops
             ));
         }
@@ -196,7 +204,7 @@ final class BlockRuleLoader {
     private List<BlockToolRule> loadToolRules(ConfigurationSection parent, int defaultTime) {
         List<BlockToolRule> tools = new ArrayList<>();
         for (var value : parent.getMapList("tools")) {
-            ConfigurationSection tool = parent.createSection("__tool_" + tools.size(), value);
+            ConfigurationSection tool = detachedSection(value);
             ConfigurationSection item = tool.getConfigurationSection("item");
             ConfigurationSection source = item != null ? item : tool;
             String type = source.getString("type", "vanilla").toLowerCase(Locale.ROOT);
@@ -218,10 +226,59 @@ final class BlockRuleLoader {
                     loadEnchantRules(tool),
                     Math.max(1, tool.getInt("time-ticks", defaultTime)),
                     Math.max(0, tool.getInt("regen-ticks", 0)),
+                    loadProfessionExp(tool),
                     toolDrops
             ));
         }
         return tools;
+    }
+
+    private List<ProfessionExpReward> loadProfessionExp(ConfigurationSection section) {
+        List<ProfessionExpReward> rewards = new ArrayList<>();
+        loadProfessionExpSection(rewards, section.getConfigurationSection("mmocore-exp"));
+        loadProfessionExpSection(rewards, section.getConfigurationSection("profession-exp"));
+        for (var value : section.getMapList("mmocore-exp")) {
+            addProfessionExpReward(rewards, detachedSection(value));
+        }
+        for (var value : section.getMapList("profession-exp")) {
+            addProfessionExpReward(rewards, detachedSection(value));
+        }
+        return rewards;
+    }
+
+    private void loadProfessionExpSection(List<ProfessionExpReward> rewards, ConfigurationSection section) {
+        if (section == null) {
+            return;
+        }
+        if (section.contains("profession") || section.contains("type") || section.contains("id")) {
+            addProfessionExpReward(rewards, section);
+            return;
+        }
+        for (String key : section.getKeys(false)) {
+            if (section.isConfigurationSection(key)) {
+                ConfigurationSection reward = section.getConfigurationSection(key);
+                if (reward != null) {
+                    String profession = reward.getString("profession", reward.getString("type", reward.getString("id", key)));
+                    double amount = reward.getDouble("amount", reward.getDouble("exp", reward.getDouble("experience", 0.0D)));
+                    addProfessionExpReward(rewards, profession, amount);
+                }
+            } else {
+                addProfessionExpReward(rewards, key, section.getDouble(key, 0.0D));
+            }
+        }
+    }
+
+    private void addProfessionExpReward(List<ProfessionExpReward> rewards, ConfigurationSection section) {
+        String profession = section.getString("profession", section.getString("type", section.getString("id", "")));
+        double amount = section.getDouble("amount", section.getDouble("exp", section.getDouble("experience", 0.0D)));
+        addProfessionExpReward(rewards, profession, amount);
+    }
+
+    private void addProfessionExpReward(List<ProfessionExpReward> rewards, String profession, double amount) {
+        if (profession == null || profession.isBlank() || amount <= 0.0D) {
+            return;
+        }
+        rewards.add(new ProfessionExpReward(profession, amount));
     }
 
     private List<BlockEnchantRule> loadEnchantRules(ConfigurationSection tool) {
@@ -260,14 +317,23 @@ final class BlockRuleLoader {
             }
         }
         for (var value : tool.getMapList("custom-enchants")) {
-            ConfigurationSection enchant = tool.createSection("__custom_enchant_" + enchants.size(), value);
+            ConfigurationSection enchant = detachedSection(value);
             enchants.add(new BlockEnchantRule(
-                    enchant.getString("type", "vanilla"),
+                    enchant.getString("type", "sinceenchantments"),
                     enchant.getString("id", enchant.getString("name", "")),
                     Math.max(1, enchant.getInt("min-level", enchant.getInt("level", 1)))
             ));
         }
         return enchants;
+    }
+
+    private ConfigurationSection detachedSection(Map<?, ?> values) {
+        YamlConfiguration yaml = new YamlConfiguration();
+        ConfigurationSection section = yaml.createSection("value");
+        for (Map.Entry<?, ?> entry : values.entrySet()) {
+            section.set(String.valueOf(entry.getKey()), entry.getValue());
+        }
+        return section;
     }
 
     private String inferEnchantType(String key) {

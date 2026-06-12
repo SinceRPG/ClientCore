@@ -57,6 +57,8 @@ vanilla-mining:
               type: vanilla
               material: WOODEN_PICKAXE
             time-ticks: 80
+            mmocore-exp:
+              mining: 2
             drops:
               - type: vanilla
                 material: COBBLESTONE
@@ -66,11 +68,27 @@ vanilla-mining:
               type: mmoitems
               mmo-type: TOOL
               mmo-id: STARTER_PICKAXE
-            # Optional vanilla enchant requirements are supported on vanilla, MMOItems, and any tool rules.
-            # Vanilla keys default to minecraft:.
+            # Optional enchant requirements are supported on vanilla, MMOItems, and any tool rules.
+            # 1) Vanilla shorthand. Keys default to minecraft:, and SinceEnchantments' combined map is checked too.
             # enchants:
             #   efficiency: 2
+            # 2) Vanilla object form.
+            # enchants:
+            #   silk_touch:
+            #     type: vanilla
+            #     min-level: 1
+            # 3) SinceEnchantments custom IDs in the dedicated list.
+            # custom-enchants:
+            #   - id: excavator
+            #     min-level: 1
+            # 4) SinceEnchantments custom IDs inside enchants.
+            # enchants:
+            #   excavator:
+            #     type: sinceenchantments
+            #     min-level: 1
             time-ticks: 40
+            mmocore-exp:
+              mining: 4
             drops:
               - type: mmoitems
                 mmo-type: MATERIAL
@@ -100,6 +118,27 @@ vanilla-mining:
 
 block-regen:
   enabled: true
+  # Runtime enchant effects for client-side block regen mining.
+  # If omitted, ClientCore falls back to vanilla-mining.enchant-effects, then top-level enchant-effects.
+  enchant-effects:
+    efficiency:
+      enabled: true
+      reduction-percent-formula: "level * random(1, level)"
+      min-time-ticks: 1
+    fortune:
+      enabled: true
+      bonus-amount-formula: "random(0, level)"
+    custom:
+      # SinceEnchantments enchant IDs can reduce mining time or add configured drop amounts.
+      - type: sinceenchantments
+        id: excavator
+        mode: time-reduction
+        formula: "level * 3"
+        min-time-ticks: 1
+      - type: sinceenchantments
+        id: fortune_plus
+        mode: drop-bonus
+        formula: "random(0, level)"
   # Determines the rendering radius around the player for fake blocks.
   # Higher values can impact client performance.
   refresh-radius: 10
@@ -159,6 +198,9 @@ block-regen:
               material: WOODEN_PICKAXE
             time-ticks: 80
             regen-ticks: 120
+            # Optional MMOCore profession EXP. Safe no-op when MMOCore is not installed.
+            mmocore-exp:
+              mining: 2
             drops:
               - type: vanilla
                 material: COBBLESTONE
@@ -167,13 +209,38 @@ block-regen:
               type: mmoitems
               mmo-type: TOOL
               mmo-id: STARTER_PICKAXE
+            # Optional enchant requirements. Vanilla enchants and SinceEnchantments custom enchants are both checked.
+            # Any tool type can use these, including vanilla, MMOItems, and type: any.
+            # Vanilla shorthand:
+            # enchants:
+            #   efficiency: 2
+            # Vanilla object form:
+            # enchants:
+            #   silk_touch:
+            #     type: vanilla
+            #     min-level: 1
+            # SinceEnchantments dedicated list:
+            # custom-enchants:
+            #   - id: excavator
+            #     min-level: 1
+            # SinceEnchantments object form inside enchants:
+            # enchants:
+            #   excavator:
+            #     type: sinceenchantments
+            #     min-level: 1
             time-ticks: 40
             regen-ticks: 60
+            mmocore-exp:
+              mining: 4
             drops:
               - type: mmoitems
                 mmo-type: MATERIAL
                 mmo-id: STARTER_STONE
                 material: STONE
+                amount: 1
+      # Rule/variant-level profession EXP is used when the matching tool has no mmocore-exp.
+      mmocore-exp:
+        mining: 1
       # Items that the player will physically receive into their inventory when mining.
       drops:
         - type: vanilla
@@ -358,6 +425,8 @@ block-regen:
         stages:
           - block: WHEAT[age=0]
             after-ticks: 1
+            mmocore-exp:
+              farming: 1
             drops:
               - type: vanilla
                 material: WHEAT_SEEDS
@@ -370,6 +439,8 @@ block-regen:
                 amount: 2
           - block: WHEAT[age=7]
             after-ticks: 120
+            mmocore-exp:
+              farming: 3
             drops:
               - type: vanilla
                 material: WHEAT
@@ -381,6 +452,8 @@ block-regen:
           - item:
               type: vanilla
               material: WOODEN_HOE
+            mmocore-exp:
+              farming: 2
       drops:
         - type: vanilla
           material: WHEAT

@@ -17,7 +17,7 @@ loot, and persistence.
 - Client-owned mobs for tutorials, personal bosses, and instanced encounters.
 - Conditional NPC visibility through Citizens or FancyNpcs providers.
 - Luck weighting for rare block and mob variants.
-- PlaceholderAPI, WorldGuard, MMOItems, MythicMobs, ModelEngine, Citizens, and FancyNpcs hooks.
+- PlaceholderAPI, WorldGuard, MMOItems, SinceEnchantments, MythicMobs, ModelEngine, Citizens, and FancyNpcs hooks.
 - Folia-aware scheduling for player, entity, region, global, and storage work.
 
 ## Installation
@@ -50,7 +50,7 @@ root, or direct rule IDs.
 ## Commands
 
 - `/clientcore reload` reloads all configuration files.
-- `/clientcore status` shows loaded block regen, vanilla mining, farming, and mob rule counts.
+- `/clientcore status` shows loaded block regen, vanilla mining, farming, mob rule counts, and hook status.
 - `/clientcore refresh` resends client-side block state around the sender.
 - `/clientcore build mode <on|off>` captures real block edits into a client-side build session.
 - `/clientcore build save <name>` saves the captured build and restores the real world.

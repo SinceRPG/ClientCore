@@ -7,6 +7,7 @@ import java.util.List;
 record BlockFarmingStage(
         String block,
         int afterTicks,
+        List<ProfessionExpReward> professionExp,
         List<ConfigurationSection> drops
 ) {
 }

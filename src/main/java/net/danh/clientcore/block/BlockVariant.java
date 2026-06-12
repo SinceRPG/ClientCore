@@ -16,6 +16,7 @@ record BlockVariant(
         int regenTicks,
         BlockMiningConfig mining,
         BlockFarmingConfig farming,
+        List<ProfessionExpReward> professionExp,
         List<ConfigurationSection> drops
 ) {
 }
