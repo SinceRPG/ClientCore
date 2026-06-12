@@ -356,7 +356,7 @@ final class BlockRuleLoader {
 
     private BlockMiningFeedback defaultFeedback(ConfigurationSection section) {
         if (section == null) {
-            return new BlockMiningFeedback(true, false, true, true, 4,
+            return new BlockMiningFeedback(true, false, true, true, false, 0x00000000, 4,
                     "<gray>Mining <white>{progress}%</white>",
                     "<bold>{bar}</bold> <white>{progress}%</white>",
                     12,
@@ -371,6 +371,8 @@ final class BlockRuleLoader {
                 section.getBoolean("actionbar", false),
                 section.getBoolean("particles", true),
                 section.getBoolean("sounds", true),
+                section.getBoolean("glowing", false),
+                parseColor(section.getString("glowing-color-argb", "00000000"), 0x00000000),
                 Math.max(1, section.getInt("interval-ticks", 4)),
                 section.getString("message", "<gray>Mining <white>{progress}%</white>"),
                 section.getString("display-format", "<bold>{bar}</bold> <white>{progress}%</white>"),

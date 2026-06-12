@@ -39,6 +39,8 @@ vanilla-mining:
       mining:
         feedback:
           display: true
+          glowing: true
+          glowing-color-argb: "80FFFFFF" # Optional 1.20.2+ glow color
           actionbar: false
           particles: true
           sounds: true
@@ -179,6 +181,8 @@ block-regen:
         visual-mode: block-display
         feedback:
           display: true
+          glowing: true
+          glowing-color-argb: "80FFFFFF"
           actionbar: false
           particles: true
           sounds: true

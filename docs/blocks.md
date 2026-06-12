@@ -344,6 +344,8 @@ mining:
   visual-mode: block-display
   feedback:
     display: true
+    glowing: true
+    glowing-color-argb: "80FFFFFF"
     actionbar: false
     particles: true
     sounds: true
@@ -504,7 +506,7 @@ Common causes:
 
 `feedback` adds non-vanilla progress feedback for the `BARRIER + BlockDisplay` mode. `display` creates a player-only
 `TextDisplay` progress bar above the block, and particles/sounds provide extra local feedback while the server-side
-mining timer is running.
+mining timer is running. `glowing: true` makes the block glow, and `glowing-color-argb` configures the glow color (Minecraft 1.20.2+).
 
 ## Farming
 

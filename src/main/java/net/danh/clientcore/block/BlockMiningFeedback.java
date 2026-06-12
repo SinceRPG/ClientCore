@@ -5,6 +5,8 @@ record BlockMiningFeedback(
         boolean actionBar,
         boolean particles,
         boolean sounds,
+        boolean glowing,
+        int glowingColorArgb,
         int intervalTicks,
         String message,
         String displayFormat,

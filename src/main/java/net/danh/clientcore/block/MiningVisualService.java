@@ -61,6 +61,15 @@ final class MiningVisualService {
                 display.setShadowRadius(0.0F);
                 display.setShadowStrength(0.0F);
                 display.setVisibleByDefault(false);
+                if (feedback.glowing()) {
+                    display.setGlowing(true);
+                    if (feedback.glowingColorArgb() != 0) {
+                        try {
+                            display.setGlowColorOverride(Color.fromARGB(feedback.glowingColorArgb()));
+                        } catch (NoSuchMethodError ignored) {
+                        }
+                    }
+                }
             }
 
             TextDisplay text = null;
