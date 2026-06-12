@@ -10,7 +10,9 @@ record BlockToolRule(
         Material material,
         String mmoType,
         String mmoId,
+        List<BlockEnchantRule> enchants,
         int timeTicks,
+        int regenTicks,
         List<ConfigurationSection> drops
 ) {
 }

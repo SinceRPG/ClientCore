@@ -100,6 +100,14 @@ vanilla-mining:
   # Leave blank to allow configured vanilla mining anywhere.
   # Set a WorldGuard flag name if the rule should only work in allowed regions.
   default-worldguard-flag: ""
+  enchant-effects:
+    efficiency:
+      enabled: true
+      reduction-percent-formula: "level * random(1, level)"
+      min-time-ticks: 1
+    fortune:
+      enabled: true
+      bonus-amount-formula: "random(0, level)"
   blocks:
     STONE:
       enabled: true
@@ -111,6 +119,8 @@ vanilla-mining:
           - item:
               type: vanilla
               material: WOODEN_PICKAXE
+            enchants:
+              efficiency: 1
             time-ticks: 80
             drops:
               - type: vanilla
@@ -130,6 +140,34 @@ vanilla-mining:
 
 Vanilla mining supports the same `mining.feedback`, `tools`, vanilla item matching, MMOItems tool matching, conditions,
 and MMOItems rewards as client-side block regen mining.
+
+Enchant behavior is applied at runtime after a tool rule chooses the base `time-ticks` and drops:
+
+- `efficiency` reduces the base mining time using `reduction-percent-formula`.
+- `fortune` adds to each configured drop stack using `bonus-amount-formula`; Silk Touch disables this configured drop bonus.
+
+Formula variables include `level`, plus `base`/`time` for Efficiency and `base`/`amount` for Fortune. Supported functions
+are `random(min,max)`, `min(a,b)`, `max(a,b)`, `floor(x)`, `ceil(x)`, and `round(x)`.
+
+Tool rules can still require enchantments as a gate. Vanilla enchantments use Bukkit/Paper enchant keys; un-namespaced
+keys default to `minecraft:`.
+
+```yaml
+tools:
+  - item:
+      type: vanilla
+      material: DIAMOND_PICKAXE
+    enchants:
+      efficiency: 3
+      silk_touch: 1
+    time-ticks: 70
+  - item:
+      type: vanilla
+      material: NETHERITE_PICKAXE
+    enchants:
+      fortune: 2
+    time-ticks: 45
+```
 
 Tool-specific drops are preferred:
 
@@ -227,7 +265,10 @@ mining:
     - item:
         type: vanilla
         material: IRON_PICKAXE
+      enchants:
+        efficiency: 2
       time-ticks: 80
+      regen-ticks: 100
       drops:
         - type: vanilla
           material: RAW_IRON
@@ -237,6 +278,7 @@ mining:
         mmo-type: TOOL
         mmo-id: MINER_PICKAXE
       time-ticks: 30
+      regen-ticks: 60
       drops:
         - type: mmoitems
           mmo-type: MATERIAL
@@ -245,7 +287,8 @@ mining:
 ```
 
 Tool drops override the variant/rule `drops`. If a matching tool has no `drops`, ClientCore uses the normal
-variant/rule drops.
+variant/rule drops. Tool `regen-ticks` overrides the variant/rule cooldown for block-regen mining; omit it to use the
+normal variant/rule `regen-ticks`.
 
 `active-block` is the hitbox block sent while the player is actively mining.
 

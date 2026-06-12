@@ -7,6 +7,8 @@ import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.player.DiggingAction;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerBlockPlacement;
 import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientPlayerDigging;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import net.danh.clientcore.condition.ConditionEvaluator;
 import net.danh.clientcore.config.ConfigManager;
 import net.danh.clientcore.hook.HookRegistry;
@@ -14,6 +16,7 @@ import net.danh.clientcore.hook.plugin.CustomBlockHook;
 import net.danh.clientcore.item.ConfigItemBuilder;
 import net.danh.clientcore.luck.LuckService;
 import net.danh.clientcore.packet.ClientPacketService;
+import net.danh.clientcore.util.Formula;
 import net.danh.clientcore.util.CompatTask;
 import net.danh.clientcore.util.FoliaScheduler;
 import net.danh.clientcore.util.Text;
@@ -21,6 +24,7 @@ import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -54,6 +58,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     private final Map<UUID, Map<String, FarmingState>> farmingStates = new ConcurrentHashMap<>();
     private List<BlockRule> rules = List.of();
     private Map<Material, VanillaBlockMiningRule> vanillaMiningRules = Map.of();
+    private MiningEnchantEffects miningEnchantEffects = MiningEnchantEffects.load(null);
     private boolean enabled;
     private boolean vanillaMiningEnabled;
     private int refreshRadius;
@@ -82,6 +87,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         this.rules = loader.load();
         this.vanillaMiningEnabled = configManager.getBlocks().getBoolean("vanilla-mining.enabled", false);
         this.vanillaMiningRules = loader.loadVanillaMiningRules();
+        this.miningEnchantEffects = MiningEnchantEffects.load(configManager.getBlocks());
         warnUnresolvedActiveBlocks();
         cancelAllMining();
         cancelAllVanillaMining();
@@ -218,7 +224,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
 
         Location loc = match.rule().location();
-        scheduler.region(loc, () -> handleBlockBreak(player, match, match.variant().drops()));
+        scheduler.region(loc, () -> handleBlockBreak(player, match, match.variant().drops(), match.variant().regenTicks()));
     }
 
     private Optional<VanillaBlockMiningRule> vanillaRuleFor(Player player, Block block) {
@@ -257,7 +263,8 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
         cancelVanillaMining(player, true);
 
-        int timeTicks = tool.map(BlockToolRule::timeTicks).orElse(rule.mining().defaultTimeTicks());
+        int baseTimeTicks = tool.map(BlockToolRule::timeTicks).orElse(rule.mining().defaultTimeTicks());
+        int timeTicks = applyEfficiency(player.getInventory().getItemInMainHand(), baseTimeTicks);
         if (timeTicks <= 0) {
             timeTicks = 1;
         }
@@ -354,11 +361,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         player.playSound(block.getLocation(), block.getBlockData().getSoundGroup().getBreakSound(), 1.0F, 1.0F);
         if (session.drops().isEmpty()) {
             debug(player, "vanilla-mining " + session.rule().material().name() + " using natural break fallback drops");
-            block.breakNaturally(player.getInventory().getItemInMainHand());
+            ItemStack tool = player.getInventory().getItemInMainHand();
+            block.breakNaturally(tool);
             return;
         }
         block.setType(Material.AIR);
-        scheduler.entity(player, () -> giveDrops(player, session.drops()));
+        scheduler.entity(player, () -> giveDrops(player, session.drops(), true));
     }
 
     private void cancelVanillaMining(Player player, int x, int y, int z, boolean clearAnimation) {
@@ -397,7 +405,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                 && first.getBlockZ() == second.getBlockZ();
     }
 
-    private void handleBlockBreak(Player player, BlockMatch match, List<ConfigurationSection> drops) {
+    private void handleBlockBreak(Player player, BlockMatch match, List<ConfigurationSection> drops, int regenTicks) {
         BlockRule rule = match.rule();
         BlockVariant variant = match.variant();
         Set<String> active = regenerating.computeIfAbsent(player.getUniqueId(), ignored -> ConcurrentHashMap.newKeySet());
@@ -416,9 +424,9 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
         sendBlockData(player, rule.location(), cooldownData);
 
-        scheduler.entity(player, () -> giveDrops(player, drops));
+        scheduler.entity(player, () -> giveDrops(player, drops, true));
 
-        scheduler.regionLater(rule.location(), variant.regenTicks(), task -> {
+        scheduler.regionLater(rule.location(), Math.max(1, regenTicks), task -> {
             if (player.isOnline()) {
                 BlockData finalData;
                 if ("ORIGINAL".equalsIgnoreCase(variant.readyBlock())) {
@@ -461,13 +469,13 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         debugDrops(player, "farming", match.rule().id() + "/" + match.variant().id(), dropSource);
         cancelMining(player, true);
         if (match.variant().farming().stages().isEmpty()) {
-            scheduler.region(match.rule().location(), () -> handleBlockBreak(player, match, drops));
+            scheduler.region(match.rule().location(), () -> handleBlockBreak(player, match, drops, match.variant().regenTicks()));
             return;
         }
         scheduler.region(match.rule().location(), () -> {
             miningVisuals.clear(player);
             sendBlockData(player, match.rule().location(), farmingStageBlockData(match, 0));
-            scheduler.entity(player, () -> giveDrops(player, drops));
+            scheduler.entity(player, () -> giveDrops(player, drops, false));
             startFarmingGrowth(player, match);
         });
     }
@@ -573,7 +581,8 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         }
         cancelMining(player, true);
 
-        int timeTicks = tool.map(BlockToolRule::timeTicks).orElse(match.variant().mining().defaultTimeTicks());
+        int baseTimeTicks = tool.map(BlockToolRule::timeTicks).orElse(match.variant().mining().defaultTimeTicks());
+        int timeTicks = applyEfficiency(player.getInventory().getItemInMainHand(), baseTimeTicks);
         if (timeTicks <= 0) {
             timeTicks = 1;
         }
@@ -582,8 +591,11 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                 .map(BlockToolRule::drops)
                 .orElse(match.variant().drops());
         debugDrops(player, "block-regen-mining", match.rule().id() + "/" + match.variant().id(), dropSource);
+        int regenTicks = tool.map(BlockToolRule::regenTicks)
+                .filter(ticks -> ticks > 0)
+                .orElse(match.variant().regenTicks());
         int entityId = breakAnimationEntityId(player, match.rule());
-        MiningSession session = new MiningSession(match.rule().id(), match.rule().location(), tool.orElse(null), entityId, drops, timeTicks, 0, -1, null, null);
+        MiningSession session = new MiningSession(match.rule().id(), match.rule().location(), tool.orElse(null), entityId, drops, timeTicks, regenTicks, 0, -1, null, null);
         miningSessions.put(player.getUniqueId(), session);
         miningVisuals.show(player, match.rule().location(), match.variant().readyBlock(), match.variant().mining().feedback(), match.variant().mining().blockDisplayOverlay());
         sendCurrentVisualBlock(player, match);
@@ -670,7 +682,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             }
             clearBreakAnimation(player, match.rule());
             miningVisuals.clear(player);
-            handleBlockBreak(player, match, session.drops());
+            handleBlockBreak(player, match, session.drops(), session.regenTicks());
             resendCurrentVisualBlock(player, match, 2L);
             resendCurrentVisualBlock(player, match, 5L);
             return;
@@ -713,13 +725,51 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     }
 
     private boolean toolMatches(ItemStack item, BlockToolRule rule) {
+        boolean itemMatches;
         if ("any".equalsIgnoreCase(rule.type())) {
+            itemMatches = true;
+        } else if ("mmoitems".equalsIgnoreCase(rule.type())) {
+            itemMatches = hooks.mmoItemMatches(item, rule.mmoType(), rule.mmoId());
+        } else {
+            itemMatches = rule.material() != null && item != null && item.getType() == rule.material();
+        }
+        return itemMatches && enchantsMatch(item, rule.enchants());
+    }
+
+    private boolean enchantsMatch(ItemStack item, List<BlockEnchantRule> enchants) {
+        if (enchants.isEmpty()) {
             return true;
         }
-        if ("mmoitems".equalsIgnoreCase(rule.type())) {
-            return hooks.mmoItemMatches(item, rule.mmoType(), rule.mmoId());
+        if (item == null || item.isEmpty()) {
+            return false;
         }
-        return rule.material() != null && item != null && item.getType() == rule.material();
+        for (BlockEnchantRule enchant : enchants) {
+            if (enchantLevel(item, enchant) < enchant.minLevel()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private int enchantLevel(ItemStack item, BlockEnchantRule rule) {
+        NamespacedKey key = enchantKey(rule.id());
+        if (key == null) {
+            return 0;
+        }
+        Enchantment enchantment = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(key);
+        if (enchantment == null) {
+            return 0;
+        }
+        return item.getEnchantmentLevel(enchantment);
+    }
+
+    private NamespacedKey enchantKey(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String normalized = raw.toLowerCase(Locale.ROOT);
+        NamespacedKey parsed = NamespacedKey.fromString(normalized);
+        return parsed == null ? NamespacedKey.minecraft(normalized) : parsed;
     }
 
     private int toolMatchPriority(BlockToolRule rule) {
@@ -775,13 +825,25 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
     }
 
     private String describeTool(BlockToolRule rule) {
+        String item;
         if ("mmoitems".equalsIgnoreCase(rule.type())) {
-            return "mmoitems:" + blank(rule.mmoType()) + "/" + blank(rule.mmoId());
+            item = "mmoitems:" + blank(rule.mmoType()) + "/" + blank(rule.mmoId());
+        } else if ("any".equalsIgnoreCase(rule.type())) {
+            item = "any";
+        } else {
+            item = "vanilla:" + (rule.material() == null ? "unknown" : rule.material().name());
         }
-        if ("any".equalsIgnoreCase(rule.type())) {
-            return "any";
+        if (rule.enchants().isEmpty()) {
+            return item;
         }
-        return "vanilla:" + (rule.material() == null ? "unknown" : rule.material().name());
+        return item + " enchants=" + describeEnchants(rule.enchants());
+    }
+
+    private String describeEnchants(List<BlockEnchantRule> enchants) {
+        return enchants.stream()
+                .map(enchant -> enchant.type() + ":" + enchant.id() + ">=" + enchant.minLevel())
+                .toList()
+                .toString();
     }
 
     private String toolMatchSource(BlockToolRule rule) {
@@ -1165,17 +1227,76 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         return base * (1.0D + bonus);
     }
 
-    private void giveDrops(Player player, List<ConfigurationSection> drops) {
+    private int applyEfficiency(ItemStack tool, int baseTimeTicks) {
+        if (!miningEnchantEffects.efficiencyEnabled()) {
+            return baseTimeTicks;
+        }
+        int level = vanillaEnchantLevel(tool, "efficiency");
+        if (level <= 0) {
+            return baseTimeTicks;
+        }
+        double reductionPercent = Formula.evaluate(miningEnchantEffects.efficiencyFormula(), Map.of(
+                "base", (double) baseTimeTicks,
+                "time", (double) baseTimeTicks,
+                "level", (double) level
+        ), new Random(), 0.0D);
+        int adjusted = (int) Math.round(baseTimeTicks - (baseTimeTicks * Math.max(0.0D, reductionPercent) / 100.0D));
+        return Math.max(miningEnchantEffects.minTimeTicks(), adjusted);
+    }
+
+    private int vanillaEnchantLevel(ItemStack item, String id) {
+        if (item == null || item.isEmpty()) {
+            return 0;
+        }
+        NamespacedKey key = enchantKey(id);
+        if (key == null) {
+            return 0;
+        }
+        Enchantment enchantment = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT).get(key);
+        return enchantment == null ? 0 : item.getEnchantmentLevel(enchantment);
+    }
+
+    private int fortuneBonus(ItemStack tool, int amount) {
+        if (!miningEnchantEffects.fortuneEnabled() || vanillaEnchantLevel(tool, "silk_touch") > 0) {
+            return 0;
+        }
+        int level = vanillaEnchantLevel(tool, "fortune");
+        if (level <= 0 || amount <= 0) {
+            return 0;
+        }
+        double bonus = Formula.evaluate(miningEnchantEffects.fortuneBonusFormula(), Map.of(
+                "base", (double) amount,
+                "amount", (double) amount,
+                "level", (double) level
+        ), new Random(), 0.0D);
+        return Math.max(0, (int) Math.floor(bonus));
+    }
+
+    private void giveDrops(Player player, List<ConfigurationSection> drops, boolean applyFortune) {
         List<ItemStack> items = new ArrayList<>();
+        ItemStack tool = player.getInventory().getItemInMainHand();
         for (ConfigurationSection drop : drops) {
             String type = drop.getString("type", "vanilla");
             if ("vanilla".equalsIgnoreCase(type)) {
-                items.add(itemBuilder.build(player, drop));
+                ItemStack item = itemBuilder.build(player, drop);
+                if (applyFortune && !item.isEmpty()) {
+                    item.setAmount(Math.min(item.getMaxStackSize(), item.getAmount() + fortuneBonus(tool, item.getAmount())));
+                }
+                items.add(item);
             } else if ("mmoitems".equalsIgnoreCase(type) && hooks.hasMmoItems()) {
                 hooks.mmoItem(drop.getString("mmo-type"), drop.getString("mmo-id"))
-                        .ifPresentOrElse(items::add, () -> {
+                        .ifPresentOrElse(item -> {
+                            ItemStack copy = item.clone();
+                            if (applyFortune && !copy.isEmpty()) {
+                                copy.setAmount(Math.min(copy.getMaxStackSize(), copy.getAmount() + fortuneBonus(tool, copy.getAmount())));
+                            }
+                            items.add(copy);
+                        }, () -> {
                             ItemStack fallback = itemBuilder.build(player, drop);
                             if (!fallback.isEmpty()) {
+                                if (applyFortune) {
+                                    fallback.setAmount(Math.min(fallback.getMaxStackSize(), fallback.getAmount() + fortuneBonus(tool, fallback.getAmount())));
+                                }
                                 items.add(fallback);
                             }
                         });
@@ -1203,17 +1324,18 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
             int animationEntityId,
             List<ConfigurationSection> drops,
             int timeTicks,
+            int regenTicks,
             int elapsedTicks,
             int stage,
             CompatTask task,
             CompatTask timeoutTask
     ) {
         MiningSession withTask(CompatTask task, CompatTask timeoutTask) {
-            return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task, timeoutTask);
+            return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, regenTicks, elapsedTicks, stage, task, timeoutTask);
         }
 
         MiningSession withProgress(int elapsedTicks, int stage) {
-            return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, elapsedTicks, stage, task, timeoutTask);
+            return new MiningSession(ruleId, location, tool, animationEntityId, drops, timeTicks, regenTicks, elapsedTicks, stage, task, timeoutTask);
         }
     }
 

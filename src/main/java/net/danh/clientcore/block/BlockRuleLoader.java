@@ -215,11 +215,63 @@ final class BlockRuleLoader {
                     material,
                     mmoType,
                     mmoId,
+                    loadEnchantRules(tool),
                     Math.max(1, tool.getInt("time-ticks", defaultTime)),
+                    Math.max(0, tool.getInt("regen-ticks", 0)),
                     toolDrops
             ));
         }
         return tools;
+    }
+
+    private List<BlockEnchantRule> loadEnchantRules(ConfigurationSection tool) {
+        List<BlockEnchantRule> enchants = new ArrayList<>();
+        ConfigurationSection section = tool.getConfigurationSection("enchants");
+        if (section == null) {
+            section = tool.getConfigurationSection("enchantments");
+        }
+        if (section == null) {
+            ConfigurationSection item = tool.getConfigurationSection("item");
+            if (item != null) {
+                section = item.getConfigurationSection("enchants");
+                if (section == null) {
+                    section = item.getConfigurationSection("enchantments");
+                }
+            }
+        }
+        if (section != null) {
+            for (String key : section.getKeys(false)) {
+                if (section.isConfigurationSection(key)) {
+                    ConfigurationSection enchant = section.getConfigurationSection(key);
+                    if (enchant != null) {
+                        enchants.add(new BlockEnchantRule(
+                                enchant.getString("type", inferEnchantType(key)),
+                                enchant.getString("id", key),
+                                Math.max(1, enchant.getInt("min-level", enchant.getInt("level", 1)))
+                        ));
+                    }
+                } else {
+                    enchants.add(new BlockEnchantRule(
+                            inferEnchantType(key),
+                            key,
+                            Math.max(1, section.getInt(key, 1))
+                    ));
+                }
+            }
+        }
+        for (var value : tool.getMapList("custom-enchants")) {
+            ConfigurationSection enchant = tool.createSection("__custom_enchant_" + enchants.size(), value);
+            enchants.add(new BlockEnchantRule(
+                    enchant.getString("type", "vanilla"),
+                    enchant.getString("id", enchant.getString("name", "")),
+                    Math.max(1, enchant.getInt("min-level", enchant.getInt("level", 1)))
+            ));
+        }
+        return enchants;
+    }
+
+    private String inferEnchantType(String key) {
+        return "vanilla";
     }
 
     private String normalizeVisualMode(String input) {

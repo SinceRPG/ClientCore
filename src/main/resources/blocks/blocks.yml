@@ -11,6 +11,21 @@ vanilla-mining:
   # Optional WorldGuard flag checked before ClientCore takes over mining.
   # Leave blank to allow configured vanilla mining anywhere.
   default-worldguard-flag: ""
+
+  # Runtime enchant effects applied after a mining tool rule chooses the base time/drops.
+  # These are formulas, so you do not need to create one tool rule for every Efficiency/Fortune level.
+  enchant-effects:
+    efficiency:
+      enabled: true
+      # Variables: base/time, level. Functions: random(min,max), min(a,b), max(a,b), floor(x), ceil(x), round(x).
+      # Final time = base - (base * reduction-percent / 100).
+      reduction-percent-formula: "level * random(1, level)"
+      min-time-ticks: 1
+    fortune:
+      enabled: true
+      # Variables: base/amount, level. The result is added to each configured drop stack.
+      # Silk Touch disables Fortune for configured drops.
+      bonus-amount-formula: "random(0, level)"
   blocks:
     # Custom mining controller for real vanilla blocks.
     # Bukkit cancels the normal break, PacketEvents sends the crack animation,
@@ -51,6 +66,10 @@ vanilla-mining:
               type: mmoitems
               mmo-type: TOOL
               mmo-id: STARTER_PICKAXE
+            # Optional vanilla enchant requirements are supported on vanilla, MMOItems, and any tool rules.
+            # Vanilla keys default to minecraft:.
+            # enchants:
+            #   efficiency: 2
             time-ticks: 40
             drops:
               - type: mmoitems
@@ -139,6 +158,7 @@ block-regen:
               type: vanilla
               material: WOODEN_PICKAXE
             time-ticks: 80
+            regen-ticks: 120
             drops:
               - type: vanilla
                 material: COBBLESTONE
@@ -148,6 +168,7 @@ block-regen:
               mmo-type: TOOL
               mmo-id: STARTER_PICKAXE
             time-ticks: 40
+            regen-ticks: 60
             drops:
               - type: mmoitems
                 mmo-type: MATERIAL
