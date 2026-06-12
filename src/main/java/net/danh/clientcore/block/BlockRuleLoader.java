@@ -331,9 +331,38 @@ final class BlockRuleLoader {
         YamlConfiguration yaml = new YamlConfiguration();
         ConfigurationSection section = yaml.createSection("value");
         for (Map.Entry<?, ?> entry : values.entrySet()) {
-            section.set(String.valueOf(entry.getKey()), entry.getValue());
+            setDetached(section, String.valueOf(entry.getKey()), entry.getValue());
         }
         return section;
+    }
+
+    private void setDetached(ConfigurationSection section, String key, Object value) {
+        if (value instanceof Map<?, ?> map) {
+            ConfigurationSection child = section.createSection(key);
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                setDetached(child, String.valueOf(entry.getKey()), entry.getValue());
+            }
+            return;
+        }
+        if (value instanceof List<?> list) {
+            section.set(key, list.stream().map(this::detachedValue).toList());
+            return;
+        }
+        section.set(key, value);
+    }
+
+    private Object detachedValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copy = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                copy.put(String.valueOf(entry.getKey()), detachedValue(entry.getValue()));
+            }
+            return copy;
+        }
+        if (value instanceof List<?> list) {
+            return list.stream().map(this::detachedValue).toList();
+        }
+        return value;
     }
 
     private String inferEnchantType(String key) {

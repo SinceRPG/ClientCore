@@ -13,6 +13,9 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.util.Transformation;
+import org.joml.AxisAngle4f;
+import org.joml.Vector3f;
 
 import java.util.Map;
 import java.util.UUID;
@@ -22,6 +25,7 @@ final class MiningVisualService {
     private final Plugin plugin;
     private final FoliaScheduler scheduler;
     private final Map<UUID, MiningVisuals> displays = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<String, GlowVisual>> glowDisplays = new ConcurrentHashMap<>();
 
     MiningVisualService(Plugin plugin, FoliaScheduler scheduler) {
         this.plugin = plugin;
@@ -134,6 +138,87 @@ final class MiningVisualService {
         updateText(visuals.text(), Math.max(0, Math.min(100, progress)), feedback);
     }
 
+    void showGlow(Player player, String key, Location location, BlockData data, String blockKey, BlockMiningFeedback feedback) {
+        if (!feedback.glowing() || data == null || data.getMaterial().isAir()) {
+            clearGlow(player, key);
+            return;
+        }
+        Map<String, GlowVisual> playerGlows = glowDisplays.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>());
+        GlowVisual current = playerGlows.get(key);
+        Location spawn = location.toBlockLocation();
+        if (current != null && current.isValid() && current.same(spawn, blockKey)) {
+            return;
+        }
+        clearGlow(player, key);
+        scheduler.region(spawn, () -> {
+            if (!player.isOnline()) {
+                return;
+            }
+            BlockDisplay display = (BlockDisplay) spawn.getWorld().spawnEntity(spawn, EntityType.BLOCK_DISPLAY);
+            display.setPersistent(false);
+            display.setInvulnerable(true);
+            display.setGravity(false);
+            display.setBlock(data);
+            display.setTransformation(new Transformation(
+                    new Vector3f(-0.002F, -0.002F, -0.002F),
+                    new AxisAngle4f(),
+                    new Vector3f(1.004F, 1.004F, 1.004F),
+                    new AxisAngle4f()
+            ));
+            display.setViewRange(32.0F);
+            display.setShadowRadius(0.0F);
+            display.setShadowStrength(0.0F);
+            display.setVisibleByDefault(false);
+            display.setGlowing(true);
+            if (feedback.glowingColorArgb() != 0) {
+                try {
+                    display.setGlowColorOverride(Color.fromARGB(feedback.glowingColorArgb()));
+                } catch (NoSuchMethodError ignored) {
+                }
+            }
+
+            scheduler.entity(player, () -> {
+                if (player.isOnline()) {
+                    player.showEntity(plugin, display);
+                } else {
+                    remove(display);
+                }
+            });
+
+            Map<String, GlowVisual> glows = glowDisplays.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>());
+            GlowVisual previous = glows.put(key, new GlowVisual(spawn, blockKey, display));
+            if (previous != null && previous.display() != null) {
+                remove(previous.display());
+            }
+        });
+    }
+
+    void clearGlow(Player player, String key) {
+        Map<String, GlowVisual> glows = glowDisplays.get(player.getUniqueId());
+        if (glows == null) {
+            return;
+        }
+        GlowVisual visual = glows.remove(key);
+        if (visual != null && visual.display() != null) {
+            remove(visual.display());
+        }
+        if (glows.isEmpty()) {
+            glowDisplays.remove(player.getUniqueId());
+        }
+    }
+
+    void clearGlows(Player player) {
+        Map<String, GlowVisual> glows = glowDisplays.remove(player.getUniqueId());
+        if (glows == null) {
+            return;
+        }
+        for (GlowVisual visual : glows.values()) {
+            if (visual.display() != null) {
+                remove(visual.display());
+            }
+        }
+    }
+
     void clear(Player player) {
         MiningVisuals visuals = displays.remove(player.getUniqueId());
         if (visuals == null) {
@@ -157,6 +242,14 @@ final class MiningVisualService {
             }
         }
         displays.clear();
+        for (Map<String, GlowVisual> glows : glowDisplays.values()) {
+            for (GlowVisual visual : glows.values()) {
+                if (visual.display() != null) {
+                    remove(visual.display());
+                }
+            }
+        }
+        glowDisplays.clear();
     }
 
     private void updateText(TextDisplay text, int progress, BlockMiningFeedback feedback) {
@@ -187,6 +280,20 @@ final class MiningVisualService {
     private record MiningVisuals(BlockDisplay block, TextDisplay text) {
         boolean isValid() {
             return (block != null && block.isValid()) || (text != null && text.isValid());
+        }
+    }
+
+    private record GlowVisual(Location location, String blockKey, BlockDisplay display) {
+        boolean isValid() {
+            return display != null && display.isValid();
+        }
+
+        boolean same(Location other, String otherBlockKey) {
+            return location.getWorld() == other.getWorld()
+                    && location.getBlockX() == other.getBlockX()
+                    && location.getBlockY() == other.getBlockY()
+                    && location.getBlockZ() == other.getBlockZ()
+                    && blockKey.equalsIgnoreCase(otherBlockKey == null ? "" : otherBlockKey);
         }
     }
 }

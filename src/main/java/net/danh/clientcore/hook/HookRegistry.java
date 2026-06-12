@@ -164,6 +164,13 @@ public final class HookRegistry {
         return mmoItems && MMOItemsHook.matches(item, typeId, itemId);
     }
 
+    public String mmoItemDescription(ItemStack item) {
+        if (!mmoItems) {
+            return "";
+        }
+        return MMOItemsHook.describe(item);
+    }
+
     public int sinceEnchantLevel(ItemStack item, String enchantId) {
         if (!sinceEnchantments) {
             return 0;

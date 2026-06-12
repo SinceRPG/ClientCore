@@ -18,6 +18,11 @@ public final class MMOItemsHook {
 
     public static boolean matches(ItemStack item, String typeId, String itemId) {
         if (item == null || item.getType().isAir() || typeId == null || itemId == null) return false;
+        String typeName = MMOItems.getTypeName(item);
+        String id = MMOItems.getID(item);
+        if (matches(typeName, typeId) && matches(id, itemId)) {
+            return true;
+        }
         try {
             LiveMMOItem live = new LiveMMOItem(item);
             return live.getType() != null
@@ -27,6 +32,27 @@ public final class MMOItemsHook {
         } catch (RuntimeException ignored) {
             return false;
         }
+    }
+
+    public static String describe(ItemStack item) {
+        if (item == null || item.getType().isAir()) return "";
+        String typeName = MMOItems.getTypeName(item);
+        String id = MMOItems.getID(item);
+        if (typeName != null && id != null) {
+            return typeName + "/" + id;
+        }
+        try {
+            LiveMMOItem live = new LiveMMOItem(item);
+            if (live.getType() != null && live.getId() != null) {
+                return live.getType().getId() + "/" + live.getId();
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return "";
+    }
+
+    private static boolean matches(String actual, String expected) {
+        return actual != null && expected != null && actual.equalsIgnoreCase(expected);
     }
 
     public static List<String> getTypes() {

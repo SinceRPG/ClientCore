@@ -904,7 +904,8 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         if (item == null || item.isEmpty()) {
             return "AIR";
         }
-        return item.getType().name();
+        String mmoItem = hooks.mmoItemDescription(item);
+        return mmoItem.isBlank() ? item.getType().name() : item.getType().name() + " MMOItems:" + mmoItem;
     }
 
     private String blank(String value) {
@@ -1011,6 +1012,7 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
         visibleBlocks.remove(event.getPlayer().getUniqueId());
         support.clear(event.getPlayer());
         miningVisuals.clear(event.getPlayer());
+        miningVisuals.clearGlows(event.getPlayer());
     }
 
     public int ruleCount() {
@@ -1060,7 +1062,9 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                 boolean isMining = session != null && session.ruleId().equals(rule.id());
                 FarmingState farmingState = farmingState(player, rule.id());
                 if (farmingState != null && variant.farming().enabled() && !variant.farming().stages().isEmpty()) {
-                    sendBlockData(player, loc, farmingStageBlockData(new BlockMatch(rule, variant), farmingState.stageIndex()));
+                    BlockData stageData = farmingStageBlockData(new BlockMatch(rule, variant), farmingState.stageIndex());
+                    sendBlockData(player, loc, stageData);
+                    updateGlowVisual(player, rule, variant, loc, stageData, variant.farming().stages().get(Math.max(0, Math.min(farmingState.stageIndex(), variant.farming().stages().size() - 1))).block());
                     if (!isVisible) visible.put(rule.id(), loc);
                     continue;
                 }
@@ -1070,10 +1074,12 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
                         ? (variant.mining().activeBlock() == null || variant.mining().activeBlock().isBlank() ? "BARRIER" : variant.mining().activeBlock())
                         : variant.readyBlock();
                 sendConfiguredBlock(player, loc, blockMaterial);
+                updateGlowVisual(player, rule, variant, loc, configuredBlockData(blockMaterial), blockMaterial);
                 if (!isVisible) visible.put(rule.id(), loc);
 
             } else if (!shouldBeVisible && isVisible) {
                 visible.remove(rule.id());
+                miningVisuals.clearGlow(player, rule.id());
                 support.removeBlock(player, loc);
                 sendRealBlock(player, loc);
             }
@@ -1082,13 +1088,25 @@ public final class BlockRegenService extends PacketListenerAbstract implements L
 
     private void restoreVisible(Player player) {
         Map<String, Location> visible = visibleBlocks.remove(player.getUniqueId());
-        if (visible == null || visible.isEmpty()) return;
+        if (visible == null || visible.isEmpty()) {
+            miningVisuals.clearGlows(player);
+            return;
+        }
         for (Location loc : visible.values()) {
             World world = loc.getWorld();
             if (world == null || !loc.isChunkLoaded()) continue;
             support.removeBlock(player, loc);
             sendRealBlock(player, loc);
         }
+        miningVisuals.clearGlows(player);
+    }
+
+    private void updateGlowVisual(Player player, BlockRule rule, BlockVariant variant, Location location, BlockData data, String blockKey) {
+        if (!variant.mining().enabled() || !variant.mining().feedback().glowing()) {
+            miningVisuals.clearGlow(player, rule.id());
+            return;
+        }
+        miningVisuals.showGlow(player, rule.id(), location, data, blockKey, variant.mining().feedback());
     }
 
     private void sendConfiguredBlock(Player player, Location location, String blockMaterial) {
